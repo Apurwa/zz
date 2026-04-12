@@ -24,7 +24,8 @@ describe('config', () => {
       const config = JSON.parse(configRaw)
       assert.equal(config.default_workers, 2)
       assert.equal(config.auto_save_interval, 30)
-      assert.equal(config.portscout, true)
+      assert.equal(config.portscout_window, false)
+      assert.equal(config.scan_dir, null)
 
       const projectsRaw = readFileSync(join(tempDir, 'projects.json'), 'utf-8')
       const projects = JSON.parse(projectsRaw)

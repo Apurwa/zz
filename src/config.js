@@ -5,7 +5,8 @@ import { CC_DIR } from './paths.js'
 const DEFAULT_CONFIG = {
   default_workers: 2,
   auto_save_interval: 30,
-  portscout: true,
+  portscout_window: false,
+  scan_dir: null,
 }
 
 function writeSecure(filePath, data) {
@@ -38,6 +39,13 @@ export function readConfig(baseDir = CC_DIR) {
   } catch {
     return { ...DEFAULT_CONFIG }
   }
+}
+
+export function updateConfig(baseDir = CC_DIR, updates) {
+  const current = readConfig(baseDir)
+  const updated = { ...current, ...updates }
+  writeSecure(join(baseDir, 'config.json'), updated)
+  return updated
 }
 
 export function readProjects(baseDir = CC_DIR) {
