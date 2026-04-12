@@ -106,13 +106,15 @@ export function getSessionIdFromClaudeFiles(projectPath) {
 }
 
 export function captureSessionId(panePid, projectPath) {
+  // Only use process args inspection — the Claude session file fallback
+  // produces false positives (matches old session files from prior conversations)
   const args = getChildProcessArgs(panePid)
   if (args) {
     const sessionId = parseClaudeSessionFromArgs(args)
     if (sessionId) return sessionId
   }
 
-  return getSessionIdFromClaudeFiles(projectPath)
+  return null
 }
 
 export function detectState(previousPanes) {

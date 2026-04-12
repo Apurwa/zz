@@ -56,6 +56,14 @@ export default function up() {
     console.log(chalk.dim('  Stale lock cleaned up.'))
   }
 
+  // Guard: if session already exists (e.g. prior ccc up failed to attach), just reattach
+  if (sessionExists()) {
+    console.log(chalk.dim('  Existing session found. Reattaching...'))
+    forceLock()
+    tmux('attach-session', '-t', SESSION)
+    return
+  }
+
   // Step 3: Read state and projects
   const state = readState()
   let projects = readProjects()
@@ -106,11 +114,10 @@ export default function up() {
   )
   sendKeys(`${SESSION}:dashboard`, `node ${dashboardPath}`)
 
-  // Step 6: Start watcher in hidden pane
+  // Step 6: Start watcher in hidden pane (output suppressed)
   const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
   tmux('split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard`)
-  // After split, new pane is active — it gets base+1, original is base
-  sendKeys(`${SESSION}:dashboard.${base + 1}`, `node ${watcherPath}`)
+  sendKeys(`${SESSION}:dashboard.${base + 1}`, `node ${watcherPath} >/dev/null 2>&1`)
   tmux('select-pane', '-t', `${SESSION}:dashboard.${base}`)
 
   // Step 7: Create project windows
