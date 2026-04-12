@@ -7,7 +7,7 @@
     "cc": "./bin/cc.js"
   },
   "scripts": {
-    "test": "node --test test/**/*.test.js"
+    "test": "node --test 'test/*.test.js' 'test/**/*.test.js'"
   },
   "keywords": ["cli", "claude", "tmux", "agent", "command-center"],
   "author": "Apurwa",
