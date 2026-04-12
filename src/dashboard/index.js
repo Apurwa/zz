@@ -50,7 +50,7 @@ function respawnWatcher() {
     const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
     tmux(
       'split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard`,
-      'node', watcherPath
+      `node ${watcherPath}`
     )
   } catch {
     // Will retry next render cycle

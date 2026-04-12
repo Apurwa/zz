@@ -2,7 +2,7 @@ import chalk from 'chalk'
 import { readProjects } from '../config.js'
 import { readState } from '../state.js'
 import { sessionExists } from '../tmux.js'
-import { contractTilde } from '../paths.js'
+import { contractTilde, timeSince } from '../paths.js'
 
 export default function status() {
   const projects = readProjects()
@@ -45,12 +45,3 @@ export default function status() {
   console.log()
 }
 
-function timeSince(date) {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  const remainMinutes = minutes % 60
-  return `${hours}h ${remainMinutes}m`
-}

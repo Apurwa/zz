@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync } from 'node:fs'
 import chalk from 'chalk'
-import { releaseLock } from '../state.js'
-import { saveTriggerPath } from '../paths.js'
+import { releaseLock, readState } from '../state.js'
+import { saveTriggerPath, watcherPidPath } from '../paths.js'
 import { sessionExists, tmuxOut, killSession, SESSION } from '../tmux.js'
 
 function sleep(ms) {
@@ -19,7 +19,7 @@ export default async function down() {
 
   // Step 1: Trigger final state save
   try {
-    writeFileSync(saveTriggerPath(), '')
+    writeFileSync(saveTriggerPath(), '', { mode: 0o600 })
     await sleep(1000)
   } catch {
     // Watcher may already be dead
@@ -56,9 +56,23 @@ export default async function down() {
     // Session may be in a bad state
   }
 
+  // Step 2.5: Fallback — if watcher is dead, save state directly
+  try {
+    const watcherPid = parseInt(readFileSync(watcherPidPath(), 'utf-8').trim(), 10)
+    process.kill(watcherPid, 0)
+  } catch {
+    try {
+      const { saveState } = await import('../watcher/save.js')
+      const currentState = readState()
+      saveState(undefined, currentState, 'shutdown')
+    } catch {
+      // Best-effort save
+    }
+  }
+
   // Step 3: Wait for processes to exit
   console.log(chalk.dim('  Waiting for processes to exit...'))
-  await sleep(3000)
+  await sleep(5000)
 
   // Step 4: Kill tmux session
   killSession()

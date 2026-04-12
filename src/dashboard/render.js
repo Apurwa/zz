@@ -1,5 +1,6 @@
 import chalk from 'chalk'
 import Table from 'cli-table3'
+import { timeSince } from '../paths.js'
 
 export function renderDashboard(projects, state, gitInfo, health) {
   const lines = []
@@ -85,10 +86,12 @@ export function renderDashboard(projects, state, gitInfo, health) {
 function getStatus(panes) {
   if (panes.length === 0) return chalk.dim('—')
 
+  const errors = panes.filter((p) => p.status === 'error').length
   const active = panes.filter((p) => p.status === 'active').length
   const expired = panes.filter((p) => p.status === 'expired').length
   const stale = panes.filter((p) => p.status === 'stale').length
 
+  if (errors > 0) return chalk.red('● error')
   if (expired > 0) return chalk.yellow(`● ${expired} expired`)
   if (stale > 0) return chalk.yellow('● stale')
   if (active === panes.length) return chalk.green('● all active')
@@ -107,11 +110,3 @@ function countSessions(projects, state) {
   return count
 }
 
-function timeSince(date) {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  return `${hours}h ${minutes % 60}m`
-}

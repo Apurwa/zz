@@ -160,7 +160,7 @@ async function handleRemoveProject(onRender) {
 
 function handleSaveNow(onRender) {
   process.stdout.write(chalk.dim('\n  saving...\n'))
-  writeFileSync(saveTriggerPath(), '')
+  writeFileSync(saveTriggerPath(), '', { mode: 0o600 })
   setTimeout(() => {
     process.stdout.write(chalk.green('  saved.\n'))
     setTimeout(onRender, 500)

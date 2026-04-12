@@ -1,19 +1,8 @@
 import { resolve, basename } from 'node:path'
 import { existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
 import chalk from 'chalk'
-import { expandTilde } from '../paths.js'
+import { expandTilde, isGitRepo, CC_DIR } from '../paths.js'
 import { addProject, readConfig } from '../config.js'
-import { CC_DIR } from '../paths.js'
-
-function isGitRepo(dir) {
-  try {
-    execFileSync('git', ['-C', dir, 'rev-parse', '--git-dir'], { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-}
 
 function parseArgs(args) {
   const paths = []

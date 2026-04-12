@@ -2,6 +2,8 @@ import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync, chmodS
 import { join } from 'node:path'
 import { CC_DIR } from './paths.js'
 
+const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
+
 const EMPTY_STATE = {
   version: 1,
   saved_at: null,
@@ -10,15 +12,19 @@ const EMPTY_STATE = {
   projects: {},
 }
 
+function freshEmptyState() {
+  return { version: 1, saved_at: null, save_trigger: null, tmux: { session: 'cc', focused_window: null, focused_pane: 0 }, projects: {} }
+}
+
 export function readState(baseDir = CC_DIR) {
   const file = join(baseDir, 'state.json')
   try {
     const raw = readFileSync(file, 'utf-8')
     const parsed = JSON.parse(raw)
-    if (parsed.version !== 1) return { ...EMPTY_STATE }
+    if (parsed.version !== 1) return freshEmptyState()
     return parsed
   } catch {
-    return { ...EMPTY_STATE, projects: {} }
+    return freshEmptyState()
   }
 }
 
@@ -44,7 +50,6 @@ export function acquireLock(baseDir = CC_DIR) {
       return { acquired: false, reason: 'running', pid: storedPid }
     }
 
-    unlinkSync(lockFile)
     writeFileSync(lockFile, String(process.pid))
     chmodSync(lockFile, 0o600)
     return { acquired: true, stale: true, stalePid: storedPid }
@@ -62,6 +67,16 @@ export function releaseLock(baseDir = CC_DIR) {
   } catch {
     // Already removed
   }
+}
+
+export function forceLock(baseDir = CC_DIR) {
+  const lockFile = join(baseDir, 'cc.lock')
+  writeFileSync(lockFile, String(process.pid))
+  chmodSync(lockFile, 0o600)
+}
+
+export function isValidSessionId(id) {
+  return typeof id === 'string' && SESSION_ID_PATTERN.test(id)
 }
 
 function isPidAlive(pid) {

@@ -1,20 +1,10 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { execFileSync } from 'node:child_process'
 import chalk from 'chalk'
-import { CC_DIR, expandTilde, contractTilde } from '../paths.js'
+import { CC_DIR, expandTilde, contractTilde, isGitRepo } from '../paths.js'
 import { scaffold, readConfig, readProjects, addProject } from '../config.js'
-import { readState, acquireLock } from '../state.js'
+import { readState, acquireLock, forceLock, isValidSessionId } from '../state.js'
 import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys } from '../tmux.js'
-
-function isGitRepo(dir) {
-  try {
-    execFileSync('git', ['-C', dir, 'rev-parse', '--git-dir'], { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-}
 
 function handleExistingSession(state) {
   console.log(chalk.yellow('  Existing session found with stale Claude processes. Reconnecting and restoring...'))
@@ -25,7 +15,7 @@ function handleExistingSession(state) {
     if (!stateEntry?.panes) continue
 
     for (const pane of stateEntry.panes) {
-      if (!pane.claude_session_id) continue
+      if (!pane.claude_session_id || !isValidSessionId(pane.claude_session_id)) continue
 
       const target = `${SESSION}:${project.alias}`
       try {
@@ -54,6 +44,7 @@ export default function up() {
     if (lock.reason === 'running') {
       if (sessionExists()) {
         const state = readState()
+        forceLock()
         handleExistingSession(state)
         return
       }
@@ -150,7 +141,7 @@ export default function up() {
         const pane = stateEntry.panes[i]
         const target = `${SESSION}:${project.alias}.${i}`
 
-        if (pane.claude_session_id) {
+        if (pane.claude_session_id && isValidSessionId(pane.claude_session_id)) {
           sendKeys(target, `claude --resume ${pane.claude_session_id}`)
         }
       }
