@@ -6,6 +6,9 @@ import { readState } from '../state.js'
 import { readProjects } from '../config.js'
 import { expandTilde, watcherPidPath } from '../paths.js'
 import { SESSION, tmux, getPaneBaseIndex } from '../tmux.js'
+import { getListeningPorts } from '../ports/lsof.js'
+import { categorize } from '../ports/categorize.js'
+import { getProcessDetails, getStartTimes, formatUptime } from '../ports/process.js'
 
 let renderTimer = null
 
@@ -70,6 +73,50 @@ export function invalidateGitCache() {
   gitCacheTime = 0
 }
 
+let portCache = null
+let portCacheTime = 0
+const PORT_CACHE_TTL = 5000
+
+async function getPortInfo() {
+  const now = Date.now()
+  if (portCache && now - portCacheTime < PORT_CACHE_TTL) {
+    return portCache
+  }
+
+  try {
+    const entries = await getListeningPorts()
+    const categorized = categorize(entries)
+    const allPorts = [...categorized.dev, ...categorized.infra]
+    const pids = [...new Set(allPorts.map((p) => p.pid))]
+
+    const [details, startTimes] = await Promise.all([
+      getProcessDetails(pids),
+      getStartTimes(pids),
+    ])
+
+    const enriched = allPorts.map((entry) => {
+      const detail = details.get(entry.pid) ?? { command: '', cwd: '' }
+      const startTime = startTimes.get(entry.pid)
+      return {
+        ...entry,
+        command: detail.command,
+        cwd: detail.cwd,
+        uptime: startTime ? formatUptime(startTime) : '',
+      }
+    })
+
+    portCache = enriched
+    portCacheTime = now
+    return enriched
+  } catch {
+    return null
+  }
+}
+
+export function invalidatePortCache() {
+  portCacheTime = 0
+}
+
 function isWatcherAlive() {
   const pidPath = watcherPidPath()
   if (!existsSync(pidPath)) return false
@@ -99,14 +146,17 @@ function respawnWatcher() {
 async function render() {
   const projects = readProjects()
   const state = readState()
-  const gitInfo = await getGitInfo(projects)
+  const [gitInfo, portInfo] = await Promise.all([
+    getGitInfo(projects),
+    getPortInfo(),
+  ])
   const watcherAlive = isWatcherAlive()
 
   if (!watcherAlive) {
     respawnWatcher()
   }
 
-  const output = renderDashboard(projects, state, gitInfo, { watcherAlive })
+  const output = renderDashboard(projects, state, gitInfo, { watcherAlive }, portInfo)
 
   process.stdout.write('\x1B[2J\x1B[H')
   process.stdout.write(output)

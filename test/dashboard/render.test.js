@@ -21,7 +21,7 @@ describe('dashboard/render', () => {
     }
     const gitInfo = { '/tmp/foo': { branch: 'main', dirty: false, ahead: 0, behind: 0, lastCommit: '2h ago' } }
 
-    const output = renderDashboard(projects, state, gitInfo, { watcherAlive: true })
+    const output = renderDashboard(projects, state, gitInfo, { watcherAlive: true }, [])
     assert.ok(output.includes('1 project'))
     assert.ok(output.includes('foo'))
     assert.ok(output.includes('main'))
@@ -29,7 +29,8 @@ describe('dashboard/render', () => {
 
   it('shows watcher warning when dead', async () => {
     const { renderDashboard } = await import('../../src/dashboard/render.js')
-    const output = renderDashboard([], { version: 1, projects: {} }, {}, { watcherAlive: false })
+    const output = renderDashboard([], { version: 1, projects: {} }, {}, { watcherAlive: false }, null)
     assert.ok(output.includes('watcher dead'))
+    assert.ok(output.includes('unavailable'))
   })
 })

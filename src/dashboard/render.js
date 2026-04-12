@@ -2,7 +2,7 @@ import chalk from 'chalk'
 import Table from 'cli-table3'
 import { timeSince } from '../paths.js'
 
-export function renderDashboard(projects, state, gitInfo, health) {
+export function renderDashboard(projects, state, gitInfo, health, portInfo) {
   const lines = []
 
   const totalSessions = countSessions(projects, state)
@@ -74,6 +74,24 @@ export function renderDashboard(projects, state, gitInfo, health) {
     }
 
     lines.push(table.toString())
+  }
+
+  // Ports section
+  lines.push('')
+  if (portInfo === null) {
+    lines.push(chalk.dim('  PORTS') + chalk.red('  unavailable'))
+  } else if (portInfo.length === 0) {
+    lines.push(chalk.dim('  PORTS') + chalk.dim('  none'))
+  } else {
+    lines.push(chalk.dim('  PORTS'))
+    for (const port of portInfo) {
+      const portStr = chalk.cyan(`:${port.port}`.padEnd(7))
+      const nameStr = chalk.dim(port.label.padEnd(10))
+      const cmdStr = (port.command || '').padEnd(22)
+      const cwdStr = chalk.dim((port.cwd || '').padEnd(28))
+      const uptimeStr = chalk.dim(port.uptime || '')
+      lines.push(`  ${portStr} ${nameStr} ${cmdStr} ${cwdStr} ${uptimeStr}`)
+    }
   }
 
   lines.push('')
