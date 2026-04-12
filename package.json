@@ -4,7 +4,7 @@
   "description": "Claude Command Center — orchestrate multiple Claude Code sessions across projects",
   "type": "module",
   "bin": {
-    "cc": "./bin/cc.js"
+    "ccc": "./bin/cc.js"
   },
   "scripts": {
     "test": "node --test 'test/*.test.js' 'test/**/*.test.js'"

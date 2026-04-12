@@ -4,10 +4,10 @@ export function printHelp() {
   const b = chalk.bold
   const d = chalk.dim
   console.log(`
-${b('cc')} — Claude Command Center
+${b('ccc')} — Claude Command Center
 
 ${b('Usage:')}
-  cc <command> [options]
+  ccc <command> [options]
 
 ${b('Commands:')}
   ${b('up')}                       Boot workspace from saved state
@@ -21,15 +21,15 @@ ${b('Commands:')}
   ${b('doctor')}                    Validate environment + state
 
 ${b('Examples:')}
-  cc up                        ${d('# boot/restore workspace')}
-  cc add ~/Projects/api        ${d('# register a project')}
-  cc add ~/Projects/a ~/Projects/b --workers 3
-  cc worker api                ${d('# add worker pane to project')}
-  cc open api                  ${d('# jump to project window')}
-  cc down                      ${d('# graceful shutdown')}
+  ccc up                        ${d('# boot/restore workspace')}
+  ccc add ~/Projects/api        ${d('# register a project')}
+  ccc add ~/Projects/a ~/Projects/b --workers 3
+  ccc worker api                ${d('# add worker pane to project')}
+  ccc open api                  ${d('# jump to project window')}
+  ccc down                      ${d('# graceful shutdown')}
 `)
 }
 
 export function printVersion() {
-  console.log('cc 1.0.0')
+  console.log('ccc 1.0.0')
 }
