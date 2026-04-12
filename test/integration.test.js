@@ -11,7 +11,7 @@ describe('integration', { skip: !tmuxAvailable ? 'tmux not available' : false },
   it('help command exits 0 and shows usage', () => {
     const result = spawnSync('node', [CC_BIN, '--help'], { encoding: 'utf-8' })
     assert.equal(result.status, 0)
-    assert.ok(result.stdout.includes('cc'))
+    assert.ok(result.stdout.includes('zz'))
     assert.ok(result.stdout.includes('up'))
     assert.ok(result.stdout.includes('down'))
   })
@@ -41,7 +41,7 @@ describe('integration', { skip: !tmuxAvailable ? 'tmux not available' : false },
   it('kill reports no session when none running', () => {
     const result = spawnSync('node', [CC_BIN, 'kill'], { encoding: 'utf-8', timeout: 5000 })
     assert.equal(result.status, 0)
-    assert.ok(result.stdout.includes('No cc session'))
+    assert.ok(result.stdout.includes('No zz session'))
   })
 
   it('remove without args exits 1', () => {

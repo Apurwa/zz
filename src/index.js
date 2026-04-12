@@ -27,7 +27,7 @@ export async function run(args) {
 
   const loader = COMMANDS[command]
   if (!loader) {
-    console.error(`Unknown command: ${command}\nRun 'cc --help' for usage.`)
+    console.error(`Unknown command: ${command}\nRun 'zz --help' for usage.`)
     process.exit(1)
   }
 

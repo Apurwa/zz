@@ -76,7 +76,7 @@ export default function up() {
     if (isGitRepo(cwd)) {
       if (isFirstRun) {
         console.log()
-        console.log(chalk.bold('  Welcome to cc — Claude Command Center'))
+        console.log(chalk.bold('  Welcome to zz — Claude Command Center'))
         console.log()
         console.log(chalk.dim('  No projects registered yet.'))
         console.log(chalk.dim(`  Detected git repo in current directory: ${contractTilde(cwd)}`))
@@ -86,13 +86,13 @@ export default function up() {
       const alias = cwd.split('/').pop().toLowerCase()
       addProject(undefined, { path: cwd, workers: config.default_workers, alias })
       console.log(chalk.green(`  Adding ${contractTilde(cwd)} with ${config.default_workers} workers...`))
-      console.log(chalk.dim(`  Run 'cc add <path>' to add more projects.`))
+      console.log(chalk.dim(`  Run 'zz add <path>' to add more projects.`))
       console.log()
 
       projects = readProjects()
     } else {
       console.log()
-      console.log(chalk.yellow('  No projects registered. Run \'cc add <path>\' to get started.'))
+      console.log(chalk.yellow('  No projects registered. Run \'zz add <path>\' to get started.'))
       console.log()
       process.exit(0)
     }

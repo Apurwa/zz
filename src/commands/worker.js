@@ -6,12 +6,12 @@ import { sessionExists, tmux, tmuxOut, SESSION } from '../tmux.js'
 export default function worker(args) {
   const alias = args[0]
   if (!alias) {
-    console.error('Usage: cc worker <project>')
+    console.error('Usage: zz worker <project>')
     process.exit(1)
   }
 
   if (!sessionExists()) {
-    console.error(chalk.red('  No cc session running. Run "cc up" first.'))
+    console.error(chalk.red('  No zz session running. Run "zz up" first.'))
     process.exit(1)
   }
 

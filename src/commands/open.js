@@ -5,12 +5,12 @@ import { sessionExists, tmux, SESSION } from '../tmux.js'
 export default function open(args) {
   const alias = args[0]
   if (!alias) {
-    console.error('Usage: cc open <project>')
+    console.error('Usage: zz open <project>')
     process.exit(1)
   }
 
   if (!sessionExists()) {
-    console.error(chalk.red('  No cc session running. Run "cc up" first.'))
+    console.error(chalk.red('  No zz session running. Run "zz up" first.'))
     process.exit(1)
   }
 

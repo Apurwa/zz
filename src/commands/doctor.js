@@ -6,7 +6,7 @@ import { expandTilde, CC_DIR, configPath, projectsPath, statePath } from '../pat
 
 export default function doctor() {
   console.log()
-  console.log(chalk.bold('cc doctor'))
+  console.log(chalk.bold('zz doctor'))
   console.log()
 
   let issues = 0
@@ -41,7 +41,7 @@ export default function doctor() {
   if (existsSync(CC_DIR)) {
     console.log(chalk.green('  ✓ ~/.cc/ directory'))
   } else {
-    console.log(chalk.yellow('  ⚠ ~/.cc/ not found') + chalk.dim(' — run "cc up" to initialize'))
+    console.log(chalk.yellow('  ⚠ ~/.cc/ not found') + chalk.dim(' — run "zz up" to initialize'))
     issues++
   }
 
@@ -81,7 +81,7 @@ export default function doctor() {
       console.log(chalk.green(`  ✓ ${project.alias}`) + chalk.dim(` — ${project.path}`))
     } else {
       console.log(chalk.red(`  ✗ ${project.alias}`) + chalk.dim(` — directory missing: ${project.path}`))
-      console.log(chalk.dim(`    Run 'cc remove ${project.alias}' to clean up.`))
+      console.log(chalk.dim(`    Run 'zz remove ${project.alias}' to clean up.`))
       issues++
     }
   }
