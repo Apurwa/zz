@@ -178,6 +178,10 @@ export function startDashboard() {
   const handleKey = createInputHandler({
     onRender: render,
     onShutdown: shutdown,
+    onInvalidateCache: () => {
+      invalidateGitCache()
+      invalidatePortCache()
+    },
   })
 
   process.stdin.on('data', (key) => {

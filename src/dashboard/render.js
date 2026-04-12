@@ -98,14 +98,12 @@ export function renderDashboard(projects, state, gitInfo, health, portInfo) {
   lines.push(chalk.dim('  ─'.repeat(28)))
   lines.push(
     chalk.dim('  ') +
-    chalk.dim('a') + ' add project  ' +
-    chalk.dim('w') + ' add worker  ' +
-    chalk.dim('r') + ' remove project'
-  )
-  lines.push(
-    chalk.dim('  ') +
-    chalk.dim('s') + ' save now     ' +
-    chalk.dim('q') + ' shutdown    ' +
+    chalk.dim('a') + ' scan  ' +
+    chalk.dim('d') + ' scan-dir  ' +
+    chalk.dim('w') + ' worker  ' +
+    chalk.dim('r') + ' remove  ' +
+    chalk.dim('s') + ' save  ' +
+    chalk.dim('q') + ' shutdown  ' +
     chalk.dim('?') + ' help'
   )
   lines.push('')
