@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import chalk from 'chalk'
 import { CC_DIR, expandTilde, contractTilde, isGitRepo } from '../paths.js'
-import { scaffold, readConfig, readProjects, addProject } from '../config.js'
+import { scaffold, readConfig, readProjects, addProject, updateConfig } from '../config.js'
 import { readState, acquireLock, forceLock, isValidSessionId } from '../state.js'
 import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys, getPaneBaseIndex } from '../tmux.js'
 
@@ -29,7 +29,7 @@ function handleExistingSession(state) {
   tmux('attach-session', '-t', SESSION)
 }
 
-export default function up() {
+export default async function up() {
   assertTmux()
 
   // Step 1: Scaffold if needed
@@ -92,9 +92,109 @@ export default function up() {
       projects = readProjects()
     } else {
       console.log()
-      console.log(chalk.yellow('  No projects registered. Run \'zz add <path>\' to get started.'))
+      console.log(chalk.dim('  No projects registered.'))
       console.log()
-      process.exit(0)
+
+      const { createInterface } = await import('node:readline')
+      const rl = createInterface({ input: process.stdin, output: process.stdout })
+
+      const choice = await new Promise((res) => {
+        rl.question(
+          '  [1] Scan a directory for git repos\n  [2] Enter a project path manually\n  Select: ',
+          (answer) => res(answer.trim())
+        )
+      })
+
+      if (choice === '1') {
+        const scanPath = await new Promise((res) => {
+          rl.question('  Scan directory: ', (answer) => { res(answer.trim()) })
+        })
+        rl.close()
+
+        if (!scanPath) process.exit(0)
+
+        const fullScanPath = expandTilde(scanPath)
+        if (!existsSync(fullScanPath)) {
+          console.log(chalk.red(`  Directory not found: ${scanPath}`))
+          process.exit(1)
+        }
+
+        updateConfig(undefined, { scan_dir: contractTilde(fullScanPath) })
+
+        const { readdirSync, lstatSync } = await import('node:fs')
+        const { join: joinPath, basename: baseName, resolve: resolvePath } = await import('node:path')
+        const { execFileSync } = await import('node:child_process')
+
+        const repos = []
+        const entries = readdirSync(fullScanPath)
+        for (const entry of entries) {
+          const fp = joinPath(fullScanPath, entry)
+          try {
+            const stat = lstatSync(fp)
+            if (!stat.isDirectory() || stat.isSymbolicLink()) continue
+          } catch { continue }
+          if (isGitRepo(fp)) {
+            let branch = '?'
+            try { branch = execFileSync('git', ['-C', fp, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf-8', timeout: 3000 }).trim() } catch {}
+            repos.push({ name: baseName(fp), path: resolvePath(fp), branch })
+          }
+        }
+
+        repos.sort((a, b) => a.name.localeCompare(b.name))
+
+        if (repos.length === 0) {
+          console.log(chalk.dim(`  No git repos found in ${scanPath}.`))
+          process.exit(0)
+        }
+
+        console.log()
+        repos.forEach((r, i) => console.log(`  ${i + 1}. ${r.name.padEnd(22)} ${chalk.dim(r.branch)}`))
+        console.log()
+
+        const { parseSelection } = await import('../selection.js')
+        const rl2 = (await import('node:readline')).createInterface({ input: process.stdin, output: process.stdout })
+        const sel = await new Promise((res) => {
+          rl2.question('  Select (comma-separated, ranges, or * for all): ', (a) => { rl2.close(); res(a.trim()) })
+        })
+
+        const indices = parseSelection(sel, repos.length)
+        if (indices.length === 0) {
+          console.log(chalk.dim('  No projects selected.'))
+          process.exit(0)
+        }
+
+        console.log(chalk.dim(`\n  Adding ${indices.length} project${indices.length === 1 ? '' : 's'}...`))
+        for (const idx of indices) {
+          const repo = repos[idx - 1]
+          addProject(undefined, { path: repo.path, workers: config.default_workers, alias: repo.name.toLowerCase() })
+          console.log(chalk.green(`  ✓ ${repo.name.toLowerCase()}`))
+        }
+
+        projects = readProjects()
+      } else if (choice === '2') {
+        const pathInput = await new Promise((res) => {
+          rl.question('  Project path: ', (answer) => { rl.close(); res(answer.trim()) })
+        })
+
+        if (!pathInput) process.exit(0)
+
+        const { resolve: resolvePath } = await import('node:path')
+        const fullPath = resolvePath(expandTilde(pathInput))
+        if (!existsSync(fullPath) || !isGitRepo(fullPath)) {
+          console.log(chalk.red(`  Not a valid git repo: ${pathInput}`))
+          process.exit(1)
+        }
+
+        const alias = fullPath.split('/').pop().toLowerCase()
+        addProject(undefined, { path: fullPath, workers: config.default_workers, alias })
+        console.log(chalk.green(`  ✓ ${alias}`))
+        projects = readProjects()
+      } else {
+        rl.close()
+        process.exit(0)
+      }
+
+      console.log()
     }
   }
 
@@ -164,7 +264,7 @@ export default function up() {
   }
 
   // Step 8: Create portscout window (named "ports" to avoid alias collision)
-  if (config.portscout) {
+  if (config.portscout_window) {
     tmux('new-window', '-n', 'ports', '-t', SESSION)
     sendKeys(`${SESSION}:ports`, 'portscout watch')
   }
