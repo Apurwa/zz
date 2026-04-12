@@ -58,12 +58,12 @@ describe('watcher/detect', () => {
   })
 
   describe('sessionCache', () => {
-    it('caches session ID by PID and returns it on subsequent calls', async () => {
+    it('returns { sessionId: null, claudeRunning: false } for non-existent PID', async () => {
       const { captureSessionId, clearSessionCache } = await import('../../src/watcher/detect.js')
       clearSessionCache()
-      // With a non-existent PID, should return null (no claude running)
       const result = captureSessionId(99999999, '/tmp/nonexistent')
-      assert.equal(result, null)
+      assert.equal(result.sessionId, null)
+      assert.equal(result.claudeRunning, false)
     })
   })
 })

@@ -130,13 +130,15 @@ export function getSessionIdFromClaudeFiles(projectPath, minMtimeMs) {
   }
 }
 
-// Cache: PID → session ID. Once captured, don't re-resolve unless PID changes.
+// Cache: PID → { sessionId, claudeRunning }. Once a sessionId is captured,
+// don't re-resolve unless PID changes. Re-check claudeRunning if no sessionId yet.
 const sessionCache = new Map()
 
 export function captureSessionId(panePid, projectPath) {
-  // Check cache first — session IDs don't change mid-conversation
-  if (sessionCache.has(panePid)) {
-    return sessionCache.get(panePid)
+  // If we already have a session ID cached for this PID, return it
+  const cached = sessionCache.get(panePid)
+  if (cached?.sessionId) {
+    return cached
   }
 
   // Method 1: process args (--resume flag)
@@ -144,26 +146,29 @@ export function captureSessionId(panePid, projectPath) {
   if (args) {
     const sessionId = parseClaudeSessionFromArgs(args)
     if (sessionId) {
-      sessionCache.set(panePid, sessionId)
-      return sessionId
+      const result = { sessionId, claudeRunning: true }
+      sessionCache.set(panePid, result)
+      return result
     }
   }
 
-  // Method 2: Claude session files — only when claude IS running
-  // (confirmed by exact process name match) and file was modified
-  // after the tmux session was created
-  if (isClaudeProcess(panePid)) {
+  // Method 2: check if claude is running (single pgrep call),
+  // then look up session files
+  const claudeRunning = isClaudeProcess(panePid)
+  if (claudeRunning) {
     const sessionCreated = getSessionCreatedTime()
     if (sessionCreated > 0) {
       const sessionId = getSessionIdFromClaudeFiles(projectPath, sessionCreated)
       if (sessionId) {
-        sessionCache.set(panePid, sessionId)
-        return sessionId
+        const result = { sessionId, claudeRunning: true }
+        sessionCache.set(panePid, result)
+        return result
       }
     }
+    return { sessionId: null, claudeRunning: true }
   }
 
-  return null
+  return { sessionId: null, claudeRunning: false }
 }
 
 export function clearSessionCache() {
