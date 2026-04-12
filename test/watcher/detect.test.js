@@ -56,4 +56,14 @@ describe('watcher/detect', () => {
       assert.equal(result, '-Users-alice-Projects-Foo')
     })
   })
+
+  describe('sessionCache', () => {
+    it('caches session ID by PID and returns it on subsequent calls', async () => {
+      const { captureSessionId, clearSessionCache } = await import('../../src/watcher/detect.js')
+      clearSessionCache()
+      // With a non-existent PID, should return null (no claude running)
+      const result = captureSessionId(99999999, '/tmp/nonexistent')
+      assert.equal(result, null)
+    })
+  })
 })

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { listPanes } from '../tmux.js'
+import { listPanes, tmuxOut, SESSION } from '../tmux.js'
 
 export function parseClaudeSessionFromArgs(args) {
   if (!args || !args.includes('claude')) return null
@@ -69,7 +69,30 @@ export function getChildProcessArgs(pid) {
   }
 }
 
-export function getSessionIdFromClaudeFiles(projectPath) {
+export function isClaudeProcess(panePid) {
+  try {
+    const result = execFileSync(
+      'pgrep', ['-P', String(panePid), '-x', 'claude'],
+      { encoding: 'utf-8', timeout: 3000 }
+    ).trim()
+    return result.length > 0
+  } catch {
+    return false
+  }
+}
+
+export function getSessionCreatedTime() {
+  try {
+    const raw = tmuxOut(
+      'display-message', '-t', SESSION, '-p', '#{session_created}'
+    )
+    return parseInt(raw, 10) * 1000 // convert to ms
+  } catch {
+    return 0
+  }
+}
+
+export function getSessionIdFromClaudeFiles(projectPath, minMtimeMs) {
   const hash = projectHashFromPath(projectPath)
   const claudeProjectDir = join(homedir(), '.claude', 'projects', hash)
 
@@ -78,19 +101,21 @@ export function getSessionIdFromClaudeFiles(projectPath) {
   try {
     const files = readdirSync(claudeProjectDir)
       .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => ({
-        name: f,
-        path: join(claudeProjectDir, f),
-      }))
+      .map((f) => {
+        const filePath = join(claudeProjectDir, f)
+        const { mtimeMs } = statSync(filePath)
+        return { name: f, path: filePath, mtimeMs }
+      })
+      .filter((f) => f.mtimeMs >= minMtimeMs)
 
     if (files.length === 0) return null
 
+    // Pick the most recently modified file that's newer than the gate
     let newest = null
     let newestTime = 0
     for (const file of files) {
-      const { mtimeMs } = statSync(file.path)
-      if (mtimeMs > newestTime) {
-        newestTime = mtimeMs
+      if (file.mtimeMs > newestTime) {
+        newestTime = file.mtimeMs
         newest = file
       }
     }
@@ -105,16 +130,44 @@ export function getSessionIdFromClaudeFiles(projectPath) {
   }
 }
 
+// Cache: PID → session ID. Once captured, don't re-resolve unless PID changes.
+const sessionCache = new Map()
+
 export function captureSessionId(panePid, projectPath) {
-  // Only use process args inspection — the Claude session file fallback
-  // produces false positives (matches old session files from prior conversations)
+  // Check cache first — session IDs don't change mid-conversation
+  if (sessionCache.has(panePid)) {
+    return sessionCache.get(panePid)
+  }
+
+  // Method 1: process args (--resume flag)
   const args = getChildProcessArgs(panePid)
   if (args) {
     const sessionId = parseClaudeSessionFromArgs(args)
-    if (sessionId) return sessionId
+    if (sessionId) {
+      sessionCache.set(panePid, sessionId)
+      return sessionId
+    }
+  }
+
+  // Method 2: Claude session files — only when claude IS running
+  // (confirmed by exact process name match) and file was modified
+  // after the tmux session was created
+  if (isClaudeProcess(panePid)) {
+    const sessionCreated = getSessionCreatedTime()
+    if (sessionCreated > 0) {
+      const sessionId = getSessionIdFromClaudeFiles(projectPath, sessionCreated)
+      if (sessionId) {
+        sessionCache.set(panePid, sessionId)
+        return sessionId
+      }
+    }
   }
 
   return null
+}
+
+export function clearSessionCache() {
+  sessionCache.clear()
 }
 
 export function detectState(previousPanes) {

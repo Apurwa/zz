@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync, unlinkSync, chmodSync } from 'node:fs'
 import { saveState } from './save.js'
-import { detectState, captureSessionId } from './detect.js'
+import { detectState, captureSessionId, isClaudeProcess } from './detect.js'
 import { readState } from '../state.js'
 import { readProjects, readConfig } from '../config.js'
 import { expandTilde, CC_DIR, watcherPidPath, saveTriggerPath } from '../paths.js'
@@ -63,11 +63,16 @@ function buildProjectState(projects) {
     const paneStates = projectPanes.map((p, i) => {
       const role = i === 0 ? 'orchestrator' : `worker-${i}`
       const sessionId = captureSessionId(p.panePid, fullPath)
-      return {
-        role,
-        claude_session_id: sessionId,
-        status: sessionId ? 'active' : 'ready',
+      const claudeRunning = isClaudeProcess(p.panePid)
+
+      let status = 'ready'
+      if (sessionId) {
+        status = 'active'
+      } else if (claudeRunning) {
+        status = 'untracked'
       }
+
+      return { role, claude_session_id: sessionId, status }
     })
 
     result[project.path] = {

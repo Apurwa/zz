@@ -91,11 +91,15 @@ function getStatus(panes) {
   const expired = panes.filter((p) => p.status === 'expired').length
   const stale = panes.filter((p) => p.status === 'stale').length
 
+  const untracked = panes.filter((p) => p.status === 'untracked').length
+
   if (errors > 0) return chalk.red('● error')
   if (expired > 0) return chalk.yellow(`● ${expired} expired`)
   if (stale > 0) return chalk.yellow('● stale')
   if (active === panes.length) return chalk.green('● all active')
+  if (active > 0 && untracked > 0) return chalk.green(`● ${active} active`) + chalk.dim(` · ${untracked} untracked`)
   if (active > 0) return chalk.green(`● ${active} active`)
+  if (untracked > 0) return chalk.dim(`● ${untracked} untracked`)
   return chalk.dim('● ready')
 }
 
