@@ -63,4 +63,15 @@ describe('integration', { skip: !tmuxAvailable ? 'tmux not available' : false },
     const result = spawnSync('node', [CC_BIN, 'add'], { encoding: 'utf-8' })
     assert.equal(result.status, 1)
   })
+
+  it('selection parser handles ranges', async () => {
+    const { parseSelection } = await import('../src/selection.js')
+    assert.deepEqual(parseSelection('1-3,5', 5), [1, 2, 3, 5])
+    assert.deepEqual(parseSelection('*', 3), [1, 2, 3])
+  })
+
+  it('port lsof parser handles empty input', async () => {
+    const { parseLsofOutput } = await import('../src/ports/lsof.js')
+    assert.deepEqual(parseLsofOutput(''), [])
+  })
 })
