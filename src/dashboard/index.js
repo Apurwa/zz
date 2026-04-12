@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { renderDashboard } from './render.js'
 import { createInputHandler } from './input.js'
@@ -9,27 +9,65 @@ import { SESSION, tmux, getPaneBaseIndex } from '../tmux.js'
 
 let renderTimer = null
 
-function getGitInfo(projects) {
-  const info = {}
-  for (const project of projects) {
-    const fullPath = expandTilde(project.path)
-    try {
-      const branch = execFileSync(
-        'git', ['-C', fullPath, 'rev-parse', '--abbrev-ref', 'HEAD'],
-        { encoding: 'utf-8', timeout: 3000 }
-      ).trim()
+let gitCache = {}
+let gitCacheTime = 0
+const GIT_CACHE_TTL = 5000
 
-      const lastCommitRaw = execFileSync(
-        'git', ['-C', fullPath, 'log', '-1', '--format=%cr'],
-        { encoding: 'utf-8', timeout: 3000 }
-      ).trim()
+function gitCmd(args, cwd) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, encoding: 'utf-8', timeout: 3000 }, (err, stdout) => {
+      resolve(err ? null : stdout.trim())
+    })
+  })
+}
 
-      info[project.path] = { branch, lastCommit: lastCommitRaw }
-    } catch {
-      info[project.path] = { branch: '?', lastCommit: '?' }
-    }
+async function getGitInfoForProject(projectPath) {
+  const [branch, porcelain, revList, lastCommit] = await Promise.all([
+    gitCmd(['rev-parse', '--abbrev-ref', 'HEAD'], projectPath),
+    gitCmd(['status', '--porcelain'], projectPath),
+    gitCmd(['rev-list', '--left-right', '--count', 'HEAD...@{upstream}'], projectPath),
+    gitCmd(['log', '-1', '--format=%cr'], projectPath),
+  ])
+
+  const dirty = porcelain !== null && porcelain.length > 0
+  let ahead = null
+  let behind = null
+  if (revList) {
+    const parts = revList.split('\t')
+    ahead = parseInt(parts[0], 10) || 0
+    behind = parseInt(parts[1], 10) || 0
   }
-  return info
+
+  return {
+    branch: branch ?? '?',
+    dirty,
+    ahead,
+    behind,
+    lastCommit: lastCommit ?? '?',
+  }
+}
+
+async function getGitInfo(projects) {
+  const now = Date.now()
+  if (now - gitCacheTime < GIT_CACHE_TTL && Object.keys(gitCache).length > 0) {
+    return gitCache
+  }
+
+  const entries = await Promise.all(
+    projects.map(async (project) => {
+      const fullPath = expandTilde(project.path)
+      const info = await getGitInfoForProject(fullPath)
+      return [project.path, info]
+    })
+  )
+
+  gitCache = Object.fromEntries(entries)
+  gitCacheTime = now
+  return gitCache
+}
+
+export function invalidateGitCache() {
+  gitCacheTime = 0
 }
 
 function isWatcherAlive() {
@@ -58,10 +96,10 @@ function respawnWatcher() {
   }
 }
 
-function render() {
+async function render() {
   const projects = readProjects()
   const state = readState()
-  const gitInfo = getGitInfo(projects)
+  const gitInfo = await getGitInfo(projects)
   const watcherAlive = isWatcherAlive()
 
   if (!watcherAlive) {

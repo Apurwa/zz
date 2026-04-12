@@ -19,7 +19,7 @@ describe('dashboard/render', () => {
         },
       },
     }
-    const gitInfo = { '/tmp/foo': { branch: 'main', lastCommit: '2h ago' } }
+    const gitInfo = { '/tmp/foo': { branch: 'main', dirty: false, ahead: 0, behind: 0, lastCommit: '2h ago' } }
 
     const output = renderDashboard(projects, state, gitInfo, { watcherAlive: true })
     assert.ok(output.includes('1 project'))

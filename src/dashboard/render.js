@@ -38,6 +38,7 @@ export function renderDashboard(projects, state, gitInfo, health) {
       head: [
         chalk.blue('PROJECT'),
         chalk.blue('BRANCH'),
+        chalk.blue('SYNC'),
         chalk.blue('SESSIONS'),
         chalk.blue('STATUS'),
         chalk.blue('LAST COMMIT'),
@@ -49,12 +50,23 @@ export function renderDashboard(projects, state, gitInfo, health) {
       const panes = stateEntry?.panes ?? []
       const activeSessions = panes.filter((p) => p.claude_session_id).length
       const totalPanes = panes.length || (project.workers + 1)
-      const git = gitInfo[project.path] ?? { branch: '?', lastCommit: '?' }
+      const git = gitInfo[project.path] ?? { branch: '?', dirty: false, ahead: null, behind: null, lastCommit: '?' }
       const status = getStatus(panes)
+
+      const branchDisplay = git.dirty ? chalk.yellow(git.branch) : git.branch
+
+      let syncDisplay = chalk.dim('--')
+      if (git.ahead !== null && git.behind !== null) {
+        if (git.ahead === 0 && git.behind === 0) syncDisplay = chalk.dim('=')
+        else if (git.ahead > 0 && git.behind > 0) syncDisplay = chalk.cyan(`↑${git.ahead}`) + ' ' + chalk.red(`↓${git.behind}`)
+        else if (git.ahead > 0) syncDisplay = chalk.cyan(`↑${git.ahead}`)
+        else syncDisplay = chalk.red(`↓${git.behind}`)
+      }
 
       table.push([
         chalk.bold(project.alias),
-        chalk.yellow(git.branch),
+        branchDisplay,
+        syncDisplay,
         `${activeSessions}/${totalPanes}`,
         status,
         chalk.dim(git.lastCommit),
