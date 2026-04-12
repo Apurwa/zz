@@ -69,3 +69,8 @@ export function sendKeys(target, keys) {
 export function killSession() {
   tmux('kill-session', '-t', SESSION)
 }
+
+export function getPaneBaseIndex() {
+  const raw = tmuxOut('show-options', '-gv', 'pane-base-index')
+  return parseInt(raw, 10) || 0
+}

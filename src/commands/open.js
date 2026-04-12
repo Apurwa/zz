@@ -14,7 +14,7 @@ export default function open(args) {
     process.exit(1)
   }
 
-  const specialWindows = ['dashboard', 'portscout', 'shell']
+  const specialWindows = ['dashboard', 'ports', 'shell']
   if (specialWindows.includes(alias)) {
     tmux('select-window', '-t', `${SESSION}:${alias}`)
     return
@@ -22,7 +22,7 @@ export default function open(args) {
 
   const project = findProject(undefined, alias)
   if (!project) {
-    console.error(chalk.red(`  Project "${alias}" not found. Available: dashboard, portscout, shell, or a project alias.`))
+    console.error(chalk.red(`  Project "${alias}" not found. Available: dashboard, ports, shell, or a project alias.`))
     process.exit(1)
   }
 

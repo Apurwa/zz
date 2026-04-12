@@ -5,7 +5,7 @@ import { createInputHandler } from './input.js'
 import { readState } from '../state.js'
 import { readProjects } from '../config.js'
 import { expandTilde, watcherPidPath } from '../paths.js'
-import { SESSION, tmux } from '../tmux.js'
+import { SESSION, tmux, getPaneBaseIndex } from '../tmux.js'
 
 let renderTimer = null
 
@@ -47,9 +47,10 @@ function isWatcherAlive() {
 
 function respawnWatcher() {
   try {
+    const base = getPaneBaseIndex()
     const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
     tmux(
-      'split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard`,
+      'split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard.${base}`,
       `node ${watcherPath}`
     )
   } catch {

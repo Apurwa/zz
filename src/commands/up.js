@@ -4,7 +4,7 @@ import chalk from 'chalk'
 import { CC_DIR, expandTilde, contractTilde, isGitRepo } from '../paths.js'
 import { scaffold, readConfig, readProjects, addProject } from '../config.js'
 import { readState, acquireLock, forceLock, isValidSessionId } from '../state.js'
-import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys } from '../tmux.js'
+import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys, getPaneBaseIndex } from '../tmux.js'
 
 function handleExistingSession(state) {
   console.log(chalk.yellow('  Existing session found with stale Claude processes. Reconnecting and restoring...'))
@@ -96,6 +96,8 @@ export default function up() {
 
   console.log(chalk.dim('  Booting workspace...'))
 
+  const base = getPaneBaseIndex()
+
   // Step 5: Create tmux session with dashboard
   const dashboardPath = new URL('../dashboard/index.js', import.meta.url).pathname
   tmux(
@@ -107,8 +109,9 @@ export default function up() {
   // Step 6: Start watcher in hidden pane
   const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
   tmux('split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard`)
-  sendKeys(`${SESSION}:dashboard.1`, `node ${watcherPath}`)
-  tmux('select-pane', '-t', `${SESSION}:dashboard.0`)
+  // After split, new pane is active — it gets base+1, original is base
+  sendKeys(`${SESSION}:dashboard.${base + 1}`, `node ${watcherPath}`)
+  tmux('select-pane', '-t', `${SESSION}:dashboard.${base}`)
 
   // Step 7: Create project windows
   for (const project of projects) {
@@ -122,13 +125,15 @@ export default function up() {
     tmux('new-window', '-n', project.alias, '-t', SESSION, '-c', fullPath)
 
     if (project.workers > 0) {
+      // Split right for workers (35%)
       tmux('split-window', '-h', '-p', '35', '-t', `${SESSION}:${project.alias}`, '-c', fullPath)
 
+      // Stack additional workers vertically on the right side
       for (let w = 1; w < project.workers; w++) {
         tmux(
           'split-window', '-v',
           '-p', String(Math.floor(100 / (project.workers - w + 1))),
-          '-t', `${SESSION}:${project.alias}.1`,
+          '-t', `${SESSION}:${project.alias}.${base + 1}`,
           '-c', fullPath
         )
       }
@@ -139,7 +144,7 @@ export default function up() {
     if (stateEntry?.panes) {
       for (let i = 0; i < stateEntry.panes.length; i++) {
         const pane = stateEntry.panes[i]
-        const target = `${SESSION}:${project.alias}.${i}`
+        const target = `${SESSION}:${project.alias}.${base + i}`
 
         if (pane.claude_session_id && isValidSessionId(pane.claude_session_id)) {
           sendKeys(target, `claude --resume ${pane.claude_session_id}`)
@@ -147,13 +152,14 @@ export default function up() {
       }
     }
 
-    tmux('select-pane', '-t', `${SESSION}:${project.alias}.0`)
+    // Focus the orchestrator pane
+    tmux('select-pane', '-t', `${SESSION}:${project.alias}.${base}`)
   }
 
-  // Step 8: Create portscout window
+  // Step 8: Create portscout window (named "ports" to avoid alias collision)
   if (config.portscout) {
-    tmux('new-window', '-n', 'portscout', '-t', SESSION)
-    sendKeys(`${SESSION}:portscout`, 'portscout watch')
+    tmux('new-window', '-n', 'ports', '-t', SESSION)
+    sendKeys(`${SESSION}:ports`, 'portscout watch')
   }
 
   // Step 9: Create shell window
