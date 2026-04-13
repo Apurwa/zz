@@ -21,6 +21,7 @@ export default function DashboardView({ projects, state, gitInfo, portInfo, watc
         break
       case 'q': onModeChange('shutdown'); break
       case '?': onModeChange('help'); break
+      case ' ': onModeChange('palette'); break
     }
   })
 

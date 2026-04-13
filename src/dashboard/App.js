@@ -2,12 +2,14 @@ import React, { useState, useCallback, useRef } from 'react'
 import { Text, Box, useInput, useApp } from 'ink'
 import { readProjects, readConfig } from '../config.js'
 import { createProjectWindow, sessionExists } from '../tmux.js'
-import { expandTilde } from '../paths.js'
+import { expandTilde, saveTriggerPath } from '../paths.js'
+import { writeFileSync } from 'node:fs'
 import { useGitInfo } from './hooks/useGitInfo.js'
 import { usePortInfo } from './hooks/usePortInfo.js'
 import { useWatcherState } from './hooks/useWatcherState.js'
 import DashboardView from './DashboardView.js'
 import HelpScreen from './HelpScreen.js'
+import SelectInput from 'ink-select-input'
 import ScanPrompt from './prompts/ScanPrompt.js'
 import ManualAddPrompt from './prompts/ManualAddPrompt.js'
 import ChangeScanDirPrompt from './prompts/ChangeScanDirPrompt.js'
@@ -116,6 +118,32 @@ export default function App() {
         })
       case 'help':
         return React.createElement(HelpScreen, { onDone: () => setMode('browse') })
+      case 'palette': {
+        const paletteItems = [
+          { label: 'Add project', value: 'scan' },
+          { label: 'Change scan directory', value: 'change-scandir' },
+          { label: 'Add worker', value: 'worker' },
+          { label: 'Remove project', value: 'remove' },
+          { label: 'Save state', value: 'save' },
+          { label: 'Shutdown', value: 'shutdown' },
+          { label: 'Help', value: 'help' },
+        ]
+        const handlePaletteSelect = (item) => {
+          if (item.value === 'save') {
+            try { writeFileSync(saveTriggerPath(), '', { mode: 0o600 }) } catch {}
+            setMode('browse')
+          } else {
+            setMode(item.value)
+          }
+        }
+        return React.createElement(Box, { flexDirection: 'column' },
+          React.createElement(Text, { bold: true }, '  Commands:'),
+          React.createElement(Text, null, ''),
+          React.createElement(Box, { paddingLeft: 2 },
+            React.createElement(SelectInput, { items: paletteItems, onSelect: handlePaletteSelect }),
+          ),
+        )
+      }
       default:
         return React.createElement(DashboardView, {
           projects,

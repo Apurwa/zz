@@ -11,7 +11,8 @@ export default function Footer() {
       React.createElement(Text, { dimColor: true }, 'r'), ' remove  ',
       React.createElement(Text, { dimColor: true }, 's'), ' save  ',
       React.createElement(Text, { dimColor: true }, 'q'), ' shutdown  ',
-      React.createElement(Text, { dimColor: true }, '?'), ' help',
+      React.createElement(Text, { dimColor: true }, '?'), ' help  ',
+      React.createElement(Text, { dimColor: true }, 'Space'), ' commands',
     ),
   )
 }
