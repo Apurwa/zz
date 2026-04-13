@@ -10,33 +10,49 @@ import { sessionExists, tmuxOut, tmux, SESSION } from '../tmux.js'
 import { expandTilde, contractTilde, saveTriggerPath, isGitRepo } from '../paths.js'
 
 export function createInputHandler(callbacks) {
-  const { onRender, onShutdown, onInvalidateCache } = callbacks
+  const { onRender, onShutdown, onInvalidateCache, onPause, onResume } = callbacks
+
+  function pause() { if (onPause) onPause() }
+  function resume() { if (onResume) onResume() }
 
   return async function handleKey(key) {
     switch (key) {
       case 'a':
+        pause()
         await handleScanDirectory(onRender, onInvalidateCache)
+        resume()
         break
       case 'A':
+        pause()
         await handleManualAdd(onRender, onInvalidateCache)
+        resume()
         break
       case 'd':
+        pause()
         await handleChangeScanDir(onRender)
+        resume()
         break
       case 'w':
+        pause()
         await handleAddWorker(onRender)
+        resume()
         break
       case 'r':
+        pause()
         await handleRemoveProject(onRender, onInvalidateCache)
+        resume()
         break
       case 's':
-        handleSaveNow(onRender)
+        pause()
+        handleSaveNow(onRender, resume)
         break
       case 'q':
-        await handleShutdown(onShutdown)
+        pause()
+        await handleShutdown(onShutdown, resume)
         break
       case '?':
-        handleHelp(onRender)
+        pause()
+        handleHelp(onRender, resume)
         break
       default:
         break
@@ -325,16 +341,17 @@ async function handleRemoveProject(onRender, onInvalidateCache) {
   })
 }
 
-function handleSaveNow(onRender) {
+function handleSaveNow(onRender, resume) {
   process.stdout.write(chalk.dim('\n  saving...\n'))
   writeFileSync(saveTriggerPath(), '', { mode: 0o600 })
   setTimeout(() => {
     process.stdout.write(chalk.green('  saved.\n'))
+    if (resume) resume()
     setTimeout(onRender, 500)
   }, 500)
 }
 
-async function handleShutdown(onShutdown) {
+async function handleShutdown(onShutdown, resume) {
   if (process.stdin.isRaw) process.stdin.setRawMode(false)
   const rl = createInterface({ input: process.stdin, output: process.stdout })
 
@@ -346,6 +363,7 @@ async function handleShutdown(onShutdown) {
         onShutdown()
       } else {
         process.stdin.setRawMode(true)
+        if (resume) resume()
       }
 
       res()
@@ -353,7 +371,7 @@ async function handleShutdown(onShutdown) {
   })
 }
 
-function handleHelp(onRender) {
+function handleHelp(onRender, resume) {
   process.stdout.write(`
 ${chalk.bold('  Keyboard Shortcuts')}
 
@@ -371,6 +389,7 @@ ${chalk.bold('  Keyboard Shortcuts')}
 
   const handler = () => {
     process.stdin.removeListener('data', handler)
+    if (resume) resume()
     onRender()
   }
   process.stdin.on('data', handler)

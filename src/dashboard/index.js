@@ -11,6 +11,7 @@ import { categorize } from '../ports/categorize.js'
 import { getProcessDetails, getStartTimes, formatUptime } from '../ports/process.js'
 
 let renderTimer = null
+let renderPaused = false
 
 let gitCache = {}
 let gitCacheTime = 0
@@ -144,6 +145,8 @@ function respawnWatcher() {
 }
 
 async function render() {
+  if (renderPaused) return
+
   const projects = readProjects()
   const state = readState()
   const [gitInfo, portInfo] = await Promise.all([
@@ -182,6 +185,8 @@ export function startDashboard() {
       invalidateGitCache()
       invalidatePortCache()
     },
+    onPause: () => { renderPaused = true },
+    onResume: () => { renderPaused = false },
   })
 
   process.stdin.on('data', (key) => {
