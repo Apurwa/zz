@@ -214,9 +214,9 @@ export default async function up() {
   )
   sendKeys(`${SESSION}:dashboard`, `node ${dashboardPath}`)
 
-  // Step 6: Start watcher in hidden pane (output suppressed)
+  // Step 6: Start watcher in hidden pane (output suppressed, minimized to 1 row)
   const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
-  tmux('split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard`)
+  tmux('split-window', '-v', '-l', '1', '-t', `${SESSION}:dashboard`)
   sendKeys(`${SESSION}:dashboard.${base + 1}`, `node ${watcherPath} >/dev/null 2>&1`)
   tmux('select-pane', '-t', `${SESSION}:dashboard.${base}`)
 

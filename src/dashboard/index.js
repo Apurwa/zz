@@ -136,7 +136,7 @@ function respawnWatcher() {
     const base = getPaneBaseIndex()
     const watcherPath = new URL('../watcher/index.js', import.meta.url).pathname
     tmux(
-      'split-window', '-v', '-p', '1', '-t', `${SESSION}:dashboard.${base}`,
+      'split-window', '-v', '-l', '1', '-t', `${SESSION}:dashboard.${base}`,
       `node ${watcherPath} >/dev/null 2>&1`
     )
   } catch {

@@ -10,7 +10,7 @@ export function renderDashboard(projects, state, gitInfo, health, portInfo) {
 
   lines.push('')
   lines.push(
-    chalk.bold.cyan('cc') +
+    chalk.bold.cyan('zz') +
     chalk.dim(` · ${projects.length} project${projects.length === 1 ? '' : 's'}`) +
     chalk.dim(` · ${totalSessions} session${totalSessions === 1 ? '' : 's'}`) +
     chalk.dim(` · saved ${savedAgo} ago`)
