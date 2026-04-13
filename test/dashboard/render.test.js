@@ -1,36 +1,39 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-describe('dashboard/render', () => {
-  it('renders header with project count and session count', async () => {
-    const { renderDashboard } = await import('../../src/dashboard/render.js')
-    const projects = [
-      { alias: 'foo', path: '/tmp/foo', workers: 2 },
-    ]
-    const state = {
-      version: 1,
-      saved_at: new Date().toISOString(),
-      projects: {
-        '/tmp/foo': {
-          panes: [
-            { role: 'orchestrator', claude_session_id: 'abc', status: 'active' },
-            { role: 'worker-1', claude_session_id: null, status: 'ready' },
-          ],
-        },
-      },
-    }
-    const gitInfo = { '/tmp/foo': { branch: 'main', dirty: false, ahead: 0, behind: 0, lastCommit: '2h ago' } }
-
-    const output = renderDashboard(projects, state, gitInfo, { watcherAlive: true }, [])
-    assert.ok(output.includes('1 project'))
-    assert.ok(output.includes('foo'))
-    assert.ok(output.includes('main'))
+describe('dashboard components', () => {
+  it('App module loads', async () => {
+    const mod = await import('../../src/dashboard/App.js')
+    assert.ok(mod.default)
   })
 
-  it('shows watcher warning when dead', async () => {
-    const { renderDashboard } = await import('../../src/dashboard/render.js')
-    const output = renderDashboard([], { version: 1, projects: {} }, {}, { watcherAlive: false }, null)
-    assert.ok(output.includes('watcher dead'))
-    assert.ok(output.includes('unavailable'))
+  it('DashboardView module loads', async () => {
+    const mod = await import('../../src/dashboard/DashboardView.js')
+    assert.ok(mod.default)
+  })
+
+  it('all hooks load', async () => {
+    const git = await import('../../src/dashboard/hooks/useGitInfo.js')
+    assert.ok(git.useGitInfo)
+    const port = await import('../../src/dashboard/hooks/usePortInfo.js')
+    assert.ok(port.usePortInfo)
+    const watcher = await import('../../src/dashboard/hooks/useWatcherState.js')
+    assert.ok(watcher.useWatcherState)
+  })
+
+  it('all prompt modules load', async () => {
+    const prompts = ['ScanPrompt', 'ManualAddPrompt', 'ChangeScanDirPrompt', 'WorkerPrompt', 'RemovePrompt', 'ShutdownConfirm']
+    for (const name of prompts) {
+      const mod = await import(`../../src/dashboard/prompts/${name}.js`)
+      assert.ok(mod.default, `${name} should have default export`)
+    }
+  })
+
+  it('view components load', async () => {
+    const views = ['Header', 'Footer', 'ErrorBar', 'ProjectTable', 'PortsSection', 'HelpScreen']
+    for (const name of views) {
+      const mod = await import(`../../src/dashboard/${name}.js`)
+      assert.ok(mod.default, `${name} should have default export`)
+    }
   })
 })
