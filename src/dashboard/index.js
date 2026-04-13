@@ -185,17 +185,25 @@ export function startDashboard() {
       invalidateGitCache()
       invalidatePortCache()
     },
-    onPause: () => { renderPaused = true },
-    onResume: () => { renderPaused = false },
+    onPause: () => {
+      renderPaused = true
+      process.stdin.removeListener('data', keyListener)
+    },
+    onResume: () => {
+      renderPaused = false
+      process.stdin.on('data', keyListener)
+    },
   })
 
-  process.stdin.on('data', (key) => {
+  function keyListener(key) {
     if (key === '\u0003') {
       shutdown()
       return
     }
     handleKey(key)
-  })
+  }
+
+  process.stdin.on('data', keyListener)
 
   render()
 

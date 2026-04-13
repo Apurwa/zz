@@ -9,13 +9,51 @@ import { readConfig, updateConfig, readProjects, addProject, removeProject } fro
 import { sessionExists, tmuxOut, tmux, SESSION } from '../tmux.js'
 import { expandTilde, contractTilde, saveTriggerPath, isGitRepo } from '../paths.js'
 
+/**
+ * Prompt with readline, supporting Escape to cancel.
+ * Returns the answer string, or null if cancelled.
+ */
+function prompt(message) {
+  if (process.stdin.isRaw) process.stdin.setRawMode(false)
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+
+  let cancelled = false
+  const escHandler = (chunk) => {
+    if (chunk.includes('\x1B')) {
+      cancelled = true
+      rl.close()
+    }
+  }
+  process.stdin.on('data', escHandler)
+
+  return new Promise((res) => {
+    rl.question(message, (answer) => {
+      process.stdin.removeListener('data', escHandler)
+      rl.close()
+      if (cancelled) { res(null); return }
+      res(answer.trim())
+    })
+
+    rl.on('close', () => {
+      process.stdin.removeListener('data', escHandler)
+      if (cancelled) res(null)
+    })
+  })
+}
+
 export function createInputHandler(callbacks) {
   const { onRender, onShutdown, onInvalidateCache, onPause, onResume } = callbacks
+  let busy = false
 
   function pause() { if (onPause) onPause() }
-  function resume() { if (onResume) onResume() }
+  function resume() { busy = false; if (onResume) onResume() }
 
   return async function handleKey(key) {
+    // Prevent re-entrant calls — one handler at a time.
+    // Also guards against handleHelp's "press any key" listener.
+    if (busy) return
+    busy = true
+
     switch (key) {
       case 'a':
         pause()
@@ -44,7 +82,8 @@ export function createInputHandler(callbacks) {
         break
       case 's':
         pause()
-        handleSaveNow(onRender, resume)
+        await handleSaveNow(onRender)
+        resume()
         break
       case 'q':
         pause()
@@ -52,39 +91,32 @@ export function createInputHandler(callbacks) {
         break
       case '?':
         pause()
-        handleHelp(onRender, resume)
+        await handleHelp(onRender)
+        resume()
         break
       default:
+        busy = false
         break
     }
   }
 }
 
 async function handleScanDirectory(onRender, onInvalidateCache) {
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-
   const config = readConfig()
   let scanDir = config.scan_dir ? expandTilde(config.scan_dir) : null
 
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-
   if (!scanDir || !existsSync(scanDir)) {
     const msg = scanDir
-      ? `\n  Directory not found: ${contractTilde(scanDir)}\n  Scan directory: `
-      : '\n  Scan directory: '
+      ? `\n  Directory not found: ${contractTilde(scanDir)}\n  Scan directory (Esc to cancel): `
+      : '\n  Scan directory (Esc to cancel): '
 
-    scanDir = await new Promise((res) => {
-      rl.question(msg, (answer) => {
-        const path = answer.trim()
-        if (!path) { res(null); return }
-        res(expandTilde(path))
-      })
-    })
+    const answer = await prompt(msg)
+    if (answer === null || !answer) { onRender(); return }
 
-    if (!scanDir || !existsSync(scanDir)) {
-      rl.close()
-      process.stdin.setRawMode(true)
-      if (scanDir) process.stdout.write(chalk.red(`  Directory not found: ${scanDir}\n`))
+    scanDir = expandTilde(answer)
+    if (!existsSync(scanDir)) {
+      process.stdout.write(chalk.red(`  Directory not found: ${answer}\n`))
+      await new Promise((res) => setTimeout(res, 1000))
       onRender()
       return
     }
@@ -125,8 +157,7 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
     }
   } catch (err) {
     process.stdout.write(chalk.red(`\n  Failed to scan: ${err.message}\n`))
-    rl.close()
-    process.stdin.setRawMode(true)
+    await new Promise((res) => setTimeout(res, 1000))
     onRender()
     return
   }
@@ -138,9 +169,8 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
     if (alreadyAddedCount > 0) {
       process.stdout.write(chalk.dim(`  (${alreadyAddedCount} repo${alreadyAddedCount === 1 ? '' : 's'} already added)\n`))
     }
-    rl.close()
-    process.stdin.setRawMode(true)
-    setTimeout(onRender, 1000)
+    await new Promise((res) => setTimeout(res, 1000))
+    onRender()
     return
   }
 
@@ -153,14 +183,8 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
   }
   process.stdout.write('\n')
 
-  const selection = await new Promise((res) => {
-    rl.question('  Select (comma-separated, ranges, or * for all)\n  [m] enter path manually\n  : ', (answer) => {
-      res(answer.trim())
-    })
-  })
-
-  rl.close()
-  process.stdin.setRawMode(true)
+  const selection = await prompt('  Select (comma-separated, ranges, or * for all)\n  [m] enter path manually\n  : ')
+  if (selection === null) { onRender(); return }
 
   if (selection === 'm') {
     await handleManualAdd(onRender, onInvalidateCache)
@@ -186,62 +210,44 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
   }
 
   if (onInvalidateCache) onInvalidateCache()
-  setTimeout(onRender, 1000)
+  await new Promise((res) => setTimeout(res, 1000))
+  onRender()
 }
 
 async function handleManualAdd(onRender, onInvalidateCache) {
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  const answer = await prompt('\n  Project path (Esc to cancel): ')
+  if (answer === null || !answer) { onRender(); return }
 
-  return new Promise((res) => {
-    rl.question('\n  Project path: ', (answer) => {
-      rl.close()
-      process.stdin.setRawMode(true)
-
-      if (answer.trim()) {
-        addProjectFromArgs([answer.trim()], {})
-        if (onInvalidateCache) onInvalidateCache()
-      }
-
-      onRender()
-      res()
-    })
-  })
+  addProjectFromArgs([answer], {})
+  if (onInvalidateCache) onInvalidateCache()
+  onRender()
 }
 
 async function handleChangeScanDir(onRender) {
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-
   const config = readConfig()
   const current = config.scan_dir ? contractTilde(expandTilde(config.scan_dir)) : '(not set)'
 
-  return new Promise((res) => {
-    rl.question(`\n  Current scan directory: ${current}\n  New scan directory: `, (answer) => {
-      rl.close()
-      process.stdin.setRawMode(true)
+  const answer = await prompt(`\n  Current scan directory: ${current}\n  New scan directory (Esc to cancel): `)
+  if (answer === null || !answer) { onRender(); return }
 
-      if (answer.trim()) {
-        const newDir = expandTilde(answer.trim())
-        if (existsSync(newDir)) {
-          updateConfig(undefined, { scan_dir: contractTilde(newDir) })
-          process.stdout.write(chalk.green(`  + Scan directory updated\n`))
-        } else {
-          process.stdout.write(chalk.red(`  Directory not found: ${answer.trim()}\n`))
-        }
-      }
+  const newDir = expandTilde(answer)
+  if (existsSync(newDir)) {
+    updateConfig(undefined, { scan_dir: contractTilde(newDir) })
+    process.stdout.write(chalk.green(`  + Scan directory updated\n`))
+  } else {
+    process.stdout.write(chalk.red(`  Directory not found: ${answer}\n`))
+  }
 
-      onRender()
-      res()
-    })
-  })
+  await new Promise((res) => setTimeout(res, 500))
+  onRender()
 }
 
 async function handleAddWorker(onRender) {
   const projects = readProjects()
   if (projects.length === 0) {
     process.stdout.write(chalk.yellow('\n  No projects registered.\n'))
-    setTimeout(onRender, 1000)
+    await new Promise((res) => setTimeout(res, 1000))
+    onRender()
     return
   }
 
@@ -251,28 +257,20 @@ async function handleAddWorker(onRender) {
     return
   }
 
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-
   process.stdout.write('\n')
   projects.forEach((p, i) => {
     process.stdout.write(`  ${i + 1}. ${p.alias}\n`)
   })
 
-  return new Promise((res) => {
-    rl.question('  Select project: ', (answer) => {
-      rl.close()
-      process.stdin.setRawMode(true)
+  const answer = await prompt('  Select project (Esc to cancel): ')
+  if (answer === null) { onRender(); return }
 
-      const idx = parseInt(answer, 10) - 1
-      if (idx >= 0 && idx < projects.length) {
-        spawnWorker(projects[idx])
-      }
+  const idx = parseInt(answer, 10) - 1
+  if (idx >= 0 && idx < projects.length) {
+    spawnWorker(projects[idx])
+  }
 
-      onRender()
-      res()
-    })
-  })
+  onRender()
 }
 
 function spawnWorker(project) {
@@ -295,68 +293,63 @@ async function handleRemoveProject(onRender, onInvalidateCache) {
   const projects = readProjects()
   if (projects.length === 0) {
     process.stdout.write(chalk.yellow('\n  No projects to remove.\n'))
-    setTimeout(onRender, 1000)
+    await new Promise((res) => setTimeout(res, 1000))
+    onRender()
     return
   }
-
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
 
   process.stdout.write('\n')
   projects.forEach((p, i) => {
     process.stdout.write(`  ${i + 1}. ${p.alias}\n`)
   })
 
-  return new Promise((res) => {
-    rl.question('  Select project to remove: ', (selAnswer) => {
-      const idx = parseInt(selAnswer, 10) - 1
-      if (idx < 0 || idx >= projects.length) {
-        rl.close()
-        process.stdin.setRawMode(true)
-        onRender()
-        res()
-        return
-      }
+  const selAnswer = await prompt('  Select project to remove (Esc to cancel): ')
+  if (selAnswer === null) { onRender(); return }
 
-      const project = projects[idx]
-      rl.question(`  Remove ${project.alias}? (y/N) `, (confirm) => {
-        rl.close()
-        process.stdin.setRawMode(true)
+  const idx = parseInt(selAnswer, 10) - 1
+  if (idx < 0 || idx >= projects.length) { onRender(); return }
 
-        if (confirm.toLowerCase() === 'y') {
-          if (sessionExists()) {
-            try {
-              tmux('kill-window', '-t', `${SESSION}:${project.alias}`)
-            } catch { /* window may not exist */ }
-          }
-          removeProject(undefined, project.alias)
-          process.stdout.write(chalk.green(`  + Removed ${project.alias}\n`))
-          if (onInvalidateCache) onInvalidateCache()
-        }
+  const project = projects[idx]
+  const confirm = await prompt(`  Remove ${project.alias}? (y/N) `)
+  if (confirm === null || confirm.toLowerCase() !== 'y') { onRender(); return }
 
-        onRender()
-        res()
-      })
-    })
-  })
+  if (sessionExists()) {
+    try {
+      tmux('kill-window', '-t', `${SESSION}:${project.alias}`)
+    } catch { /* window may not exist */ }
+  }
+  removeProject(undefined, project.alias)
+  process.stdout.write(chalk.green(`  + Removed ${project.alias}\n`))
+  if (onInvalidateCache) onInvalidateCache()
+
+  await new Promise((res) => setTimeout(res, 500))
+  onRender()
 }
 
-function handleSaveNow(onRender, resume) {
+async function handleSaveNow(onRender) {
   process.stdout.write(chalk.dim('\n  saving...\n'))
   writeFileSync(saveTriggerPath(), '', { mode: 0o600 })
-  setTimeout(() => {
-    process.stdout.write(chalk.green('  saved.\n'))
-    if (resume) resume()
-    setTimeout(onRender, 500)
-  }, 500)
+  await new Promise((res) => setTimeout(res, 500))
+  process.stdout.write(chalk.green('  saved.\n'))
+  await new Promise((res) => setTimeout(res, 500))
+  onRender()
 }
 
 async function handleShutdown(onShutdown, resume) {
   if (process.stdin.isRaw) process.stdin.setRawMode(false)
   const rl = createInterface({ input: process.stdin, output: process.stdout })
 
+  // Escape cancels the prompt
+  process.stdin.once('data', (chunk) => {
+    if (chunk === '\x1B') {
+      rl.close()
+      process.stdin.setRawMode(true)
+      if (resume) resume()
+    }
+  })
+
   return new Promise((res) => {
-    rl.question('\n  Shutdown? (y/N) ', (answer) => {
+    rl.question('\n  Shutdown? (y/N/Esc) ', (answer) => {
       rl.close()
 
       if (answer.toLowerCase() === 'y') {
@@ -371,26 +364,27 @@ async function handleShutdown(onShutdown, resume) {
   })
 }
 
-function handleHelp(onRender, resume) {
+async function handleHelp(onRender) {
+  process.stdout.write('\x1B[2J\x1B[H')
   process.stdout.write(`
 ${chalk.bold('  Keyboard Shortcuts')}
 
-  ${chalk.bold('a')}  Scan directory -- find and add git repos
-  ${chalk.bold('A')}  Add path manually -- type a project path
+  ${chalk.bold('a')}  Scan directory — find and add git repos
+  ${chalk.bold('A')}  Add path manually — type a project path
   ${chalk.bold('d')}  Change scan directory
-  ${chalk.bold('w')}  Add worker -- spawns new worker pane in a project
-  ${chalk.bold('r')}  Remove project -- with confirmation
-  ${chalk.bold('s')}  Save state now -- triggers immediate save
-  ${chalk.bold('q')}  Shutdown -- graceful shutdown with confirmation
+  ${chalk.bold('w')}  Add worker — spawns new worker pane in a project
+  ${chalk.bold('r')}  Remove project — with confirmation
+  ${chalk.bold('s')}  Save state now — triggers immediate save
+  ${chalk.bold('q')}  Shutdown — graceful shutdown with confirmation
+  ${chalk.bold('Esc')} Cancel any prompt
   ${chalk.bold('?')}  This help screen
 
   ${chalk.dim('Press any key to return to dashboard...')}
 `)
 
-  const handler = () => {
-    process.stdin.removeListener('data', handler)
-    if (resume) resume()
-    onRender()
-  }
-  process.stdin.on('data', handler)
+  // Wait for a single keypress without stacking a persistent listener
+  await new Promise((res) => {
+    process.stdin.once('data', res)
+  })
+  onRender()
 }
