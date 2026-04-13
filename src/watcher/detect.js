@@ -134,34 +134,44 @@ export function getSessionIdFromClaudeFiles(projectPath, minMtimeMs) {
 // don't re-resolve unless PID changes. Re-check claudeRunning if no sessionId yet.
 const sessionCache = new Map()
 
-export function captureSessionId(panePid, projectPath) {
+/**
+ * Capture session ID for a pane.
+ * @param {number} panePid - PID of the pane's shell process
+ * @param {string} projectPath - absolute path to the project
+ * @param {Set} claimedIds - session IDs already assigned to other panes this cycle.
+ *   File-based lookups that return an already-claimed ID are skipped (dedup).
+ *   Process-args IDs are always trusted (they're per-process, not per-project).
+ */
+export function captureSessionId(panePid, projectPath, claimedIds = new Set()) {
   // If we already have a session ID cached for this PID, return it
   const cached = sessionCache.get(panePid)
   if (cached?.sessionId) {
     return cached
   }
 
-  // Method 1: process args (--resume flag)
+  // Method 1: process args (--resume flag) — per-process, always correct
   const args = getChildProcessArgs(panePid)
   if (args) {
     const sessionId = parseClaudeSessionFromArgs(args)
     if (sessionId) {
       const result = { sessionId, claudeRunning: true }
       sessionCache.set(panePid, result)
+      claimedIds.add(sessionId)
       return result
     }
   }
 
-  // Method 2: check if claude is running (single pgrep call),
-  // then look up session files
+  // Method 2: Claude session files — per-project, must dedup across panes
   const claudeRunning = isClaudeProcess(panePid)
   if (claudeRunning) {
     const sessionCreated = getSessionCreatedTime()
     if (sessionCreated > 0) {
       const sessionId = getSessionIdFromClaudeFiles(projectPath, sessionCreated)
-      if (sessionId) {
+      // Only assign if not already claimed by another pane in this cycle
+      if (sessionId && !claimedIds.has(sessionId)) {
         const result = { sessionId, claudeRunning: true }
         sessionCache.set(panePid, result)
+        claimedIds.add(sessionId)
         return result
       }
     }

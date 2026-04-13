@@ -60,10 +60,12 @@ function buildProjectState(projects) {
     if (windowIndex === null) continue
 
     const projectPanes = panes.filter((p) => p.windowIndex === windowIndex)
+    // Shared set per project — prevents file-based fallback from assigning
+    // the same session ID to multiple panes
+    const claimedIds = new Set()
     const paneStates = projectPanes.map((p, i) => {
       const role = i === 0 ? 'orchestrator' : `worker-${i}`
-      // captureSessionId returns { sessionId, claudeRunning } to avoid double pgrep
-      const result = captureSessionId(p.panePid, fullPath)
+      const result = captureSessionId(p.panePid, fullPath, claimedIds)
 
       let status = 'ready'
       if (result.sessionId) {

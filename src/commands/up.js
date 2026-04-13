@@ -248,15 +248,34 @@ export default async function up() {
 
     // Resume sessions from saved state
     const stateEntry = state.projects?.[project.path]
+    let restoredCount = 0
+    let freshCount = 0
     if (stateEntry?.panes) {
+      // Dedup: track which session IDs we've already resumed to prevent
+      // multiple panes from opening the same conversation
+      const resumedIds = new Set()
       for (let i = 0; i < stateEntry.panes.length; i++) {
         const pane = stateEntry.panes[i]
         const target = `${SESSION}:${project.alias}.${base + i}`
+        const sid = pane.claude_session_id
 
-        if (pane.claude_session_id && isValidSessionId(pane.claude_session_id)) {
-          sendKeys(target, `claude --resume ${pane.claude_session_id}`)
+        if (sid && isValidSessionId(sid) && !resumedIds.has(sid)) {
+          sendKeys(target, `claude --resume ${sid}`)
+          resumedIds.add(sid)
+          restoredCount++
+        } else if (i > 0) {
+          // Workers without a unique session get fresh claude
+          sendKeys(target, 'claude')
+          freshCount++
         }
       }
+    }
+
+    if (restoredCount > 0 || freshCount > 0) {
+      const parts = []
+      if (restoredCount > 0) parts.push(`${restoredCount} restored`)
+      if (freshCount > 0) parts.push(`${freshCount} fresh`)
+      console.log(chalk.dim(`  ${project.alias}: ${parts.join(', ')}`))
     }
 
     // Focus the orchestrator pane
