@@ -19,47 +19,7 @@ export default function ScanPrompt({ onDone }) {
   const [alreadyAdded, setAlreadyAdded] = useState(0)
   const [message, setMessage] = useState(null)
 
-  // Menu step
-  if (step === 'menu') {
-    const menuItems = []
-    if (hasScanDir) {
-      menuItems.push({ label: `Scan ${contractTilde(expandTilde(config.scan_dir))}`, value: 'scan' })
-    }
-    menuItems.push({ label: 'Scan a different directory', value: 'ask-dir' })
-    menuItems.push({ label: 'Enter path manually', value: 'manual' })
-
-    const handleMenuSelect = (item) => {
-      if (item.value === 'scan') {
-        setStep('scanning')
-      } else if (item.value === 'ask-dir') {
-        setStep('ask-dir')
-      } else if (item.value === 'manual') {
-        onDone('manual-add')
-      }
-    }
-
-    return React.createElement(Box, { flexDirection: 'column' },
-      React.createElement(Text, { bold: true }, '  Add project:'),
-      React.createElement(Text, null, ''),
-      React.createElement(Box, { paddingLeft: 2 },
-        React.createElement(SelectInput, { items: menuItems, onSelect: handleMenuSelect }),
-      ),
-    )
-  }
-
-  // Ask for scan directory
-  if (step === 'ask-dir') {
-    const handleDirConfirm = (dir) => {
-      updateConfig(undefined, { scan_dir: contractTilde(dir) })
-      setScanDir(dir)
-      setStep('scanning')
-      setError(null)
-    }
-
-    return React.createElement(DirBrowser, { onConfirm: handleDirConfirm, onCancel: () => onDone() })
-  }
-
-  // Scanning step — run scan in useEffect
+  // Scanning effect — must be above all conditional returns (React hooks rule)
   useEffect(() => {
     if (step !== 'scanning' || repos !== null) return
 
@@ -109,6 +69,46 @@ export default function ScanPrompt({ onDone }) {
       setTimeout(onDone, 1500)
     }
   }, [step, repos])
+
+  // Menu step
+  if (step === 'menu') {
+    const menuItems = []
+    if (hasScanDir) {
+      menuItems.push({ label: `Scan ${contractTilde(expandTilde(config.scan_dir))}`, value: 'scan' })
+    }
+    menuItems.push({ label: 'Scan a different directory', value: 'ask-dir' })
+    menuItems.push({ label: 'Enter path manually', value: 'manual' })
+
+    const handleMenuSelect = (item) => {
+      if (item.value === 'scan') {
+        setStep('scanning')
+      } else if (item.value === 'ask-dir') {
+        setStep('ask-dir')
+      } else if (item.value === 'manual') {
+        onDone('manual-add')
+      }
+    }
+
+    return React.createElement(Box, { flexDirection: 'column' },
+      React.createElement(Text, { bold: true }, '  Add project:'),
+      React.createElement(Text, null, ''),
+      React.createElement(Box, { paddingLeft: 2 },
+        React.createElement(SelectInput, { items: menuItems, onSelect: handleMenuSelect }),
+      ),
+    )
+  }
+
+  // Ask for scan directory
+  if (step === 'ask-dir') {
+    const handleDirConfirm = (dir) => {
+      updateConfig(undefined, { scan_dir: contractTilde(dir) })
+      setScanDir(dir)
+      setStep('scanning')
+      setError(null)
+    }
+
+    return React.createElement(DirBrowser, { onConfirm: handleDirConfirm, onCancel: () => onDone() })
+  }
 
   // Show message
   if (message) {
