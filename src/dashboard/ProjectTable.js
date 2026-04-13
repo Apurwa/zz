@@ -1,6 +1,19 @@
 import React from 'react'
 import { Text, Box } from 'ink'
-import Table from 'ink-table'
+
+const COLS = [
+  { key: 'PROJECT', width: 16 },
+  { key: 'BRANCH', width: 14 },
+  { key: 'SYNC', width: 10 },
+  { key: 'SESSIONS', width: 10 },
+  { key: 'STATUS', width: 22 },
+  { key: 'LAST COMMIT', width: 14 },
+]
+
+function truncPad(str, width) {
+  if (str.length > width) return str.slice(0, width - 1) + '…'
+  return str.padEnd(width)
+}
 
 export default function ProjectTable({ projects, state, gitInfo }) {
   if (projects.length === 0) {
@@ -32,8 +45,35 @@ export default function ProjectTable({ projects, state, gitInfo }) {
     }
   })
 
-  return React.createElement(Box, { paddingLeft: 2 },
-    React.createElement(Table, { data })
+  const headerRow = COLS.map((c) => truncPad(c.key, c.width)).join('')
+
+  return React.createElement(Box, { flexDirection: 'column', paddingLeft: 2 },
+    React.createElement(Text, { color: 'blue' }, headerRow),
+    ...data.map((row, i) =>
+      React.createElement(Text, { key: i },
+        ...COLS.map((col, j) => {
+          const val = truncPad(String(row[col.key] ?? ''), col.width)
+          if (col.key === 'BRANCH' && row.BRANCH.includes('✱')) {
+            return React.createElement(Text, { key: j, color: 'yellow' }, val)
+          }
+          if (col.key === 'SYNC') {
+            if (val.includes('↑') && val.includes('↓')) return React.createElement(Text, { key: j, color: 'yellow' }, val)
+            if (val.includes('↑')) return React.createElement(Text, { key: j, color: 'cyan' }, val)
+            if (val.includes('↓')) return React.createElement(Text, { key: j, color: 'red' }, val)
+            return React.createElement(Text, { key: j, dimColor: true }, val)
+          }
+          if (col.key === 'STATUS') {
+            if (val.includes('error')) return React.createElement(Text, { key: j, color: 'red' }, val)
+            if (val.includes('expired') || val.includes('stale')) return React.createElement(Text, { key: j, color: 'yellow' }, val)
+            if (val.includes('active')) return React.createElement(Text, { key: j, color: 'green' }, val)
+            return React.createElement(Text, { key: j, dimColor: true }, val)
+          }
+          if (col.key === 'LAST COMMIT') return React.createElement(Text, { key: j, dimColor: true }, val)
+          if (col.key === 'PROJECT') return React.createElement(Text, { key: j, bold: true }, val)
+          return React.createElement(Text, { key: j }, val)
+        })
+      )
+    ),
   )
 }
 
