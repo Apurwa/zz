@@ -22,6 +22,10 @@ export function renderDashboard(projects, state, gitInfo, health, portInfo) {
     lines.push(chalk.red('  ⚠ watcher dead — respawning...'))
   }
 
+  if (health.lastError) {
+    lines.push(chalk.red(`  ⚠ error: ${health.lastError} — see ~/.cc/dashboard.log`))
+  }
+
   lines.push('')
 
   if (projects.length === 0) {

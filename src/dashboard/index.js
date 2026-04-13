@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, appendFileSync, statSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { renderDashboard } from './render.js'
 import { createInputHandler } from './input.js'
 import { readState } from '../state.js'
 import { readProjects } from '../config.js'
-import { expandTilde, watcherPidPath } from '../paths.js'
+import { expandTilde, watcherPidPath, CC_DIR } from '../paths.js'
 import { SESSION, tmux, getPaneBaseIndex } from '../tmux.js'
 import { getListeningPorts } from '../ports/lsof.js'
 import { categorize } from '../ports/categorize.js'
@@ -12,6 +13,22 @@ import { getProcessDetails, getStartTimes, formatUptime } from '../ports/process
 
 let renderTimer = null
 let renderPaused = false
+let rendering = false
+let lastError = null
+const LOG_PATH = join(CC_DIR, 'dashboard.log')
+const MAX_LOG_SIZE = 50 * 1024
+
+function logError(context, err) {
+  const msg = `[${new Date().toISOString()}] ${context}: ${err?.message ?? err}\n`
+  try {
+    // Cap log file at 50KB
+    try {
+      const { size } = statSync(LOG_PATH)
+      if (size > MAX_LOG_SIZE) writeFileSync(LOG_PATH, '')
+    } catch { /* file may not exist yet */ }
+    appendFileSync(LOG_PATH, msg)
+  } catch { /* can't log — ignore */ }
+}
 
 let gitCache = {}
 let gitCacheTime = 0
@@ -145,24 +162,35 @@ function respawnWatcher() {
 }
 
 async function render() {
-  if (renderPaused) return
+  if (renderPaused || rendering) return
+  rendering = true
 
-  const projects = readProjects()
-  const state = readState()
-  const [gitInfo, portInfo] = await Promise.all([
-    getGitInfo(projects),
-    getPortInfo(),
-  ])
-  const watcherAlive = isWatcherAlive()
+  try {
+    const projects = readProjects()
+    const state = readState()
+    const [gitInfo, portInfo] = await Promise.all([
+      getGitInfo(projects),
+      getPortInfo(),
+    ])
+    const watcherAlive = isWatcherAlive()
 
-  if (!watcherAlive) {
-    respawnWatcher()
+    if (!watcherAlive) {
+      respawnWatcher()
+    }
+
+    const output = renderDashboard(projects, state, gitInfo, { watcherAlive, lastError }, portInfo)
+
+    process.stdout.write('\x1B[2J\x1B[H')
+    process.stdout.write(output)
+
+    // Clear error after successful render
+    lastError = null
+  } catch (err) {
+    lastError = err.message
+    logError('render', err)
+  } finally {
+    rendering = false
   }
-
-  const output = renderDashboard(projects, state, gitInfo, { watcherAlive }, portInfo)
-
-  process.stdout.write('\x1B[2J\x1B[H')
-  process.stdout.write(output)
 }
 
 function shutdown() {
@@ -209,10 +237,33 @@ export function startDashboard() {
 
   renderTimer = setInterval(render, 2000)
 
+  // Safety nets — never crash silently
+  process.on('unhandledRejection', (err) => {
+    logError('unhandledRejection', err)
+    lastError = err?.message ?? 'unknown error'
+  })
+
+  process.stdout.on('error', (err) => {
+    logError('stdout', err)
+    // EPIPE means tmux pane was killed — exit cleanly
+    if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') {
+      process.exit(0)
+    }
+  })
+
   process.on('SIGTERM', () => {
     if (renderTimer) clearInterval(renderTimer)
     if (process.stdin.isRaw) process.stdin.setRawMode(false)
     process.exit(0)
+  })
+
+  // Fatal exit message — if the process exits unexpectedly, tell the user
+  process.on('exit', (code) => {
+    if (code !== 0) {
+      try {
+        process.stderr.write(`\nDashboard exited unexpectedly (code ${code}). See ~/.cc/dashboard.log\n`)
+      } catch { /* stream may be closed */ }
+    }
   })
 }
 
