@@ -116,16 +116,21 @@ export default function ScanPrompt({ onDone }) {
     if (indices.length === 0) { onDone(); return }
 
     const cfg = readConfig()
-    const added = []
+    const addedProjects = []
+    const addedNames = []
     for (const idx of indices) {
       const repo = repos[idx - 1]
       const alias = repo.name.toLowerCase()
-      const ok = addProject(undefined, { path: repo.path, workers: cfg.default_workers, alias })
-      if (ok) added.push(alias)
+      const project = { path: repo.path, workers: cfg.default_workers, alias }
+      const ok = addProject(undefined, project)
+      if (ok) {
+        addedProjects.push(project)
+        addedNames.push(alias)
+      }
     }
 
-    setMessage(`Added ${added.length} project${added.length === 1 ? '' : 's'}: ${added.join(', ')}`)
-    setTimeout(onDone, 1000)
+    setMessage(`Added ${addedNames.length} project${addedNames.length === 1 ? '' : 's'}: ${addedNames.join(', ')}`)
+    setTimeout(() => onDone(null, addedProjects), 1000)
   }
 
   return React.createElement(Box, { flexDirection: 'column' },

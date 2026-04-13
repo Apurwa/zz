@@ -4,7 +4,7 @@ import chalk from 'chalk'
 import { CC_DIR, expandTilde, contractTilde, isGitRepo } from '../paths.js'
 import { scaffold, readConfig, readProjects, addProject, updateConfig } from '../config.js'
 import { readState, acquireLock, forceLock, isValidSessionId } from '../state.js'
-import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys, getPaneBaseIndex } from '../tmux.js'
+import { assertTmux, sessionExists, tmux, tmuxOut, SESSION, sendKeys, getPaneBaseIndex, createProjectWindow } from '../tmux.js'
 
 function handleExistingSession(state) {
   console.log(chalk.yellow('  Existing session found with stale Claude processes. Reconnecting and restoring...'))
@@ -229,22 +229,7 @@ export default async function up() {
       continue
     }
 
-    tmux('new-window', '-n', project.alias, '-t', SESSION, '-c', fullPath)
-
-    if (project.workers > 0) {
-      // Split right for workers (35%)
-      tmux('split-window', '-h', '-p', '35', '-t', `${SESSION}:${project.alias}`, '-c', fullPath)
-
-      // Stack additional workers vertically on the right side
-      for (let w = 1; w < project.workers; w++) {
-        tmux(
-          'split-window', '-v',
-          '-p', String(Math.floor(100 / (project.workers - w + 1))),
-          '-t', `${SESSION}:${project.alias}.${base + 1}`,
-          '-c', fullPath
-        )
-      }
-    }
+    createProjectWindow({ alias: project.alias, path: fullPath, workers: project.workers })
 
     // Resume sessions from saved state
     const stateEntry = state.projects?.[project.path]

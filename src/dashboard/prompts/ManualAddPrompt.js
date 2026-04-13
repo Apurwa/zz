@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Text, Box } from 'ink'
 import TextInput from 'ink-text-input'
 import { addProjectFromArgs } from '../../commands/add.js'
+import { readProjects } from '../../config.js'
 
 export default function ManualAddPrompt({ onDone }) {
   const [value, setValue] = useState('')
@@ -10,12 +11,15 @@ export default function ManualAddPrompt({ onDone }) {
 
   const handleSubmit = (input) => {
     if (!input) { onDone(); return }
+    const before = readProjects()
     const result = addProjectFromArgs([input], {})
     if (result.failed.length > 0) {
       setError(`Failed to add: ${input}`)
     } else {
+      const after = readProjects()
+      const added = after.filter((p) => !before.some((b) => b.path === p.path))
       setDone(true)
-      setTimeout(onDone, 500)
+      setTimeout(() => onDone(null, added), 500)
     }
   }
 

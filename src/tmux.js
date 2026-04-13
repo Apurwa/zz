@@ -74,3 +74,29 @@ export function getPaneBaseIndex() {
   const raw = tmuxOut('show-options', '-gv', 'pane-base-index')
   return parseInt(raw, 10) || 0
 }
+
+/**
+ * Create a tmux window for a project with orchestrator + worker panes.
+ * @param {{ alias: string, path: string, workers: number }} project
+ */
+export function createProjectWindow(project) {
+  const base = getPaneBaseIndex()
+  const fullPath = project.path
+
+  tmux('new-window', '-n', project.alias, '-t', SESSION, '-c', fullPath)
+
+  if (project.workers > 0) {
+    tmux('split-window', '-h', '-p', '35', '-t', `${SESSION}:${project.alias}`, '-c', fullPath)
+
+    for (let w = 1; w < project.workers; w++) {
+      tmux(
+        'split-window', '-v',
+        '-p', String(Math.floor(100 / (project.workers - w + 1))),
+        '-t', `${SESSION}:${project.alias}.${base + 1}`,
+        '-c', fullPath,
+      )
+    }
+  }
+
+  tmux('select-pane', '-t', `${SESSION}:${project.alias}.${base}`)
+}

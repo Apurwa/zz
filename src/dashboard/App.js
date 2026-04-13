@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react'
 import { Text, Box, useInput, useApp } from 'ink'
-import { readProjects } from '../config.js'
+import { readProjects, readConfig } from '../config.js'
+import { createProjectWindow, sessionExists } from '../tmux.js'
+import { expandTilde } from '../paths.js'
 import { useGitInfo } from './hooks/useGitInfo.js'
 import { usePortInfo } from './hooks/usePortInfo.js'
 import { useWatcherState } from './hooks/useWatcherState.js'
@@ -73,7 +75,18 @@ export default function App() {
     setProjectsVersion((v) => v + 1)
   }, [])
 
-  const handleDone = useCallback((nextMode) => {
+  const handleDone = useCallback((nextMode, addedProjects) => {
+    // Create tmux windows for newly added projects (outside render cycle)
+    if (addedProjects?.length > 0 && sessionExists()) {
+      const config = readConfig()
+      for (const added of addedProjects) {
+        createProjectWindow({
+          alias: added.alias,
+          path: expandTilde(added.path),
+          workers: added.workers ?? config.default_workers,
+        })
+      }
+    }
     refreshProjects()
     setMode(nextMode ?? 'browse')
   }, [refreshProjects])
@@ -87,9 +100,9 @@ export default function App() {
   const content = (() => {
     switch (mode) {
       case 'scan':
-        return React.createElement(ScanPrompt, { onDone: (next) => handleDone(next) })
+        return React.createElement(ScanPrompt, { onDone: (next, added) => handleDone(next, added) })
       case 'manual-add':
-        return React.createElement(ManualAddPrompt, { onDone: () => handleDone() })
+        return React.createElement(ManualAddPrompt, { onDone: (next, added) => handleDone(next, added) })
       case 'change-scandir':
         return React.createElement(ChangeScanDirPrompt, { onDone: () => handleDone() })
       case 'worker':
