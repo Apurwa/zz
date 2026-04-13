@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { Text, Box } from 'ink'
 import SelectInput from 'ink-select-input'
-import TextInput from 'ink-text-input'
 import { existsSync, readdirSync, lstatSync } from 'node:fs'
 import { join, resolve, basename } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { readConfig, updateConfig, readProjects, addProject } from '../../config.js'
 import { expandTilde, contractTilde, isGitRepo } from '../../paths.js'
 import MultiSelect from '../components/MultiSelect.js'
+import DirBrowser from '../components/DirBrowser.js'
 
 export default function ScanPrompt({ onDone }) {
   const config = readConfig()
   const hasScanDir = config.scan_dir && existsSync(expandTilde(config.scan_dir))
   const [step, setStep] = useState('menu')
   const [scanDir, setScanDir] = useState(hasScanDir ? expandTilde(config.scan_dir) : '')
-  const [dirValue, setDirValue] = useState('')
   const [error, setError] = useState(null)
   const [repos, setRepos] = useState(null)
   const [alreadyAdded, setAlreadyAdded] = useState(0)
@@ -50,28 +49,14 @@ export default function ScanPrompt({ onDone }) {
 
   // Ask for scan directory
   if (step === 'ask-dir') {
-    const handleDirSubmit = (input) => {
-      if (!input) { onDone(); return }
-      const dir = expandTilde(input)
-      if (!existsSync(dir)) {
-        setError(`Directory not found: ${input}`)
-        setDirValue('')
-        return
-      }
+    const handleDirConfirm = (dir) => {
       updateConfig(undefined, { scan_dir: contractTilde(dir) })
       setScanDir(dir)
       setStep('scanning')
       setError(null)
     }
 
-    return React.createElement(Box, { flexDirection: 'column' },
-      error && React.createElement(Text, { color: 'red' }, `  ${error}`),
-      React.createElement(Box, null,
-        React.createElement(Text, null, '  Scan directory: '),
-        React.createElement(TextInput, { value: dirValue, onChange: setDirValue, onSubmit: handleDirSubmit }),
-      ),
-      React.createElement(Text, { dimColor: true }, '  (Ctrl+C to cancel)'),
-    )
+    return React.createElement(DirBrowser, { onConfirm: handleDirConfirm, onCancel: () => onDone() })
   }
 
   // Scanning step — run scan in useEffect
