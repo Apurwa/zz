@@ -10,33 +10,19 @@ import { sessionExists, tmuxOut, tmux, SESSION } from '../tmux.js'
 import { expandTilde, contractTilde, saveTriggerPath, isGitRepo } from '../paths.js'
 
 /**
- * Prompt with readline, supporting Escape to cancel.
- * Returns the answer string, or null if cancelled.
+ * Prompt with readline. Returns the answer string, or null if cancelled (Ctrl+C / empty).
  */
 function prompt(message) {
   if (process.stdin.isRaw) process.stdin.setRawMode(false)
   const rl = createInterface({ input: process.stdin, output: process.stdout })
 
-  let cancelled = false
-  const escHandler = (chunk) => {
-    if (chunk.includes('\x1B')) {
-      cancelled = true
-      rl.close()
-    }
-  }
-  process.stdin.on('data', escHandler)
-
   return new Promise((res) => {
-    rl.question(message, (answer) => {
-      process.stdin.removeListener('data', escHandler)
-      rl.close()
-      if (cancelled) { res(null); return }
-      res(answer.trim())
-    })
+    rl.on('close', () => res(null))
 
-    rl.on('close', () => {
-      process.stdin.removeListener('data', escHandler)
-      if (cancelled) res(null)
+    rl.question(message, (answer) => {
+      rl.close()
+      const trimmed = answer.trim()
+      res(trimmed || null)
     })
   })
 }
@@ -107,8 +93,8 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
 
   if (!scanDir || !existsSync(scanDir)) {
     const msg = scanDir
-      ? `\n  Directory not found: ${contractTilde(scanDir)}\n  Scan directory (Esc to cancel): `
-      : '\n  Scan directory (Esc to cancel): '
+      ? `\n  Directory not found: ${contractTilde(scanDir)}\n  Scan directory (Ctrl+C to cancel): `
+      : '\n  Scan directory (Ctrl+C to cancel): '
 
     const answer = await prompt(msg)
     if (answer === null || !answer) { onRender(); return }
@@ -215,7 +201,7 @@ async function handleScanDirectory(onRender, onInvalidateCache) {
 }
 
 async function handleManualAdd(onRender, onInvalidateCache) {
-  const answer = await prompt('\n  Project path (Esc to cancel): ')
+  const answer = await prompt('\n  Project path (Ctrl+C to cancel): ')
   if (answer === null || !answer) { onRender(); return }
 
   addProjectFromArgs([answer], {})
@@ -227,7 +213,7 @@ async function handleChangeScanDir(onRender) {
   const config = readConfig()
   const current = config.scan_dir ? contractTilde(expandTilde(config.scan_dir)) : '(not set)'
 
-  const answer = await prompt(`\n  Current scan directory: ${current}\n  New scan directory (Esc to cancel): `)
+  const answer = await prompt(`\n  Current scan directory: ${current}\n  New scan directory (Ctrl+C to cancel): `)
   if (answer === null || !answer) { onRender(); return }
 
   const newDir = expandTilde(answer)
@@ -262,7 +248,7 @@ async function handleAddWorker(onRender) {
     process.stdout.write(`  ${i + 1}. ${p.alias}\n`)
   })
 
-  const answer = await prompt('  Select project (Esc to cancel): ')
+  const answer = await prompt('  Select project (Ctrl+C to cancel): ')
   if (answer === null) { onRender(); return }
 
   const idx = parseInt(answer, 10) - 1
@@ -303,7 +289,7 @@ async function handleRemoveProject(onRender, onInvalidateCache) {
     process.stdout.write(`  ${i + 1}. ${p.alias}\n`)
   })
 
-  const selAnswer = await prompt('  Select project to remove (Esc to cancel): ')
+  const selAnswer = await prompt('  Select project to remove (Ctrl+C to cancel): ')
   if (selAnswer === null) { onRender(); return }
 
   const idx = parseInt(selAnswer, 10) - 1
@@ -336,32 +322,13 @@ async function handleSaveNow(onRender) {
 }
 
 async function handleShutdown(onShutdown, resume) {
-  if (process.stdin.isRaw) process.stdin.setRawMode(false)
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  const answer = await prompt('\n  Shutdown? (y/N, Ctrl+C to cancel) ')
 
-  // Escape cancels the prompt
-  process.stdin.once('data', (chunk) => {
-    if (chunk === '\x1B') {
-      rl.close()
-      process.stdin.setRawMode(true)
-      if (resume) resume()
-    }
-  })
-
-  return new Promise((res) => {
-    rl.question('\n  Shutdown? (y/N/Esc) ', (answer) => {
-      rl.close()
-
-      if (answer.toLowerCase() === 'y') {
-        onShutdown()
-      } else {
-        process.stdin.setRawMode(true)
-        if (resume) resume()
-      }
-
-      res()
-    })
-  })
+  if (answer && answer.toLowerCase() === 'y') {
+    onShutdown()
+  } else {
+    if (resume) resume()
+  }
 }
 
 async function handleHelp(onRender) {
@@ -376,7 +343,7 @@ ${chalk.bold('  Keyboard Shortcuts')}
   ${chalk.bold('r')}  Remove project — with confirmation
   ${chalk.bold('s')}  Save state now — triggers immediate save
   ${chalk.bold('q')}  Shutdown — graceful shutdown with confirmation
-  ${chalk.bold('Esc')} Cancel any prompt
+  ${chalk.bold('Ctrl+C')} Cancel any prompt
   ${chalk.bold('?')}  This help screen
 
   ${chalk.dim('Press any key to return to dashboard...')}
