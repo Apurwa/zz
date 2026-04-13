@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react'
-import { Text, Box } from 'ink'
+import React, { useState, useCallback, useRef } from 'react'
+import { Text, Box, useInput, useApp } from 'ink'
 import { readProjects } from '../config.js'
 import { useGitInfo } from './hooks/useGitInfo.js'
 import { usePortInfo } from './hooks/usePortInfo.js'
@@ -36,9 +36,33 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  const { exit } = useApp()
   const [mode, setMode] = useState('browse')
   const [lastError, setLastError] = useState(null)
   const [projectsVersion, setProjectsVersion] = useState(0)
+  const lastCtrlC = useRef(0)
+
+  // Ctrl+C handler: cancel prompt → browse, browse → shutdown, double → force quit
+  useInput((input, key) => {
+    if (key.ctrl && input === 'c') {
+      const now = Date.now()
+      // Double Ctrl+C within 1 second = force quit
+      if (now - lastCtrlC.current < 1000) {
+        exit()
+        return
+      }
+      lastCtrlC.current = now
+
+      if (mode === 'browse') {
+        setMode('shutdown')
+      } else if (mode === 'shutdown') {
+        setMode('browse')
+      } else {
+        // Cancel any prompt → return to dashboard
+        setMode('browse')
+      }
+    }
+  })
 
   const projects = readProjects()
   const { gitInfo, gitError } = useGitInfo(projects)

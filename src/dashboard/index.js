@@ -40,7 +40,7 @@ process.on('exit', (code) => {
 
 async function main() {
   const { default: App } = await import('./App.js')
-  render(React.createElement(App))
+  render(React.createElement(App), { exitOnCtrlC: false })
 }
 
 main().catch((err) => {
